@@ -33,6 +33,8 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      FEEDBACK_SIGNING_SECRET: ${{ secrets.FEEDBACK_SIGNING_SECRET }}
+      FEEDBACK_BASE_URL: ${{ vars.FEEDBACK_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

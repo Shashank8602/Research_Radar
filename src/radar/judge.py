@@ -111,30 +111,47 @@ def apply_scores(c: Candidate, item, config: AppConfig, topic_names: set[str]) -
 
 
 def judge_all(
-    cands: list[Candidate], config: AppConfig, *, router=None, pause_s: float = 1.0
+    cands: list[Candidate], config: AppConfig, *, router=None, pause_s: float = 4.0, passes: int = 2
 ) -> int:
-    """Judge candidates in batches (in place). Returns the number left unjudged (degraded)."""
+    """Judge candidates in batches (in place). Returns the number left unjudged (degraded).
+
+    Items the model skips or a failed batch are retried in a further pass (smaller, later batches
+    ease free-tier token-per-minute limits). Whatever is still unjudged degrades to snippet text.
+    """
     topic_names = {t.name for t in config.topics}
     system = SYSTEM.format(topics=_topics_block(config))
     router = router or llm.build_router(config)
     size = config.judge.batch_size
-    unjudged = 0
-    for start in range(0, len(cands), size):
-        batch = cands[start : start + size]
-        prompt = "Score these items:\n\n" + _items_block(batch, config.judge.snippet_chars)
-        try:
-            result, _model = llm.complete_structured(
-                prompt, JudgeBatch, system=system, name="judge-batch", router=router
-            )
-            by_n = {i.n: i for i in result.items}
-        except Exception:
-            by_n = {}
-        for n, c in enumerate(batch, 1):
-            if n in by_n:
-                apply_scores(c, by_n[n], config, topic_names)
-            else:
-                fallback_text(c)
-                unjudged += 1
-        if start + size < len(cands):
+    primary = config.models.judge
+    pending = list(cands)
+    for attempt in range(1, passes + 1):
+        if not pending:
+            break
+        still: list[Candidate] = []
+        batches = [pending[i : i + size] for i in range(0, len(pending), size)]
+        for b_idx, batch in enumerate(batches):
+            prompt = "Score these items:\n\n" + _items_block(batch, config.judge.snippet_chars)
+            try:
+                result, model = llm.complete_structured(
+                    prompt, JudgeBatch, system=system, name="judge-batch", router=router
+                )
+                by_n = {i.n: i for i in result.items}
+                if model and model not in primary:
+                    print(f"[judge] note: batch answered by fallback model {model}")
+            except Exception as e:
+                by_n = {}
+                print(f"[judge] WARNING pass {attempt} batch {b_idx + 1}: {str(e)[:160]}")
+            for n, c in enumerate(batch, 1):
+                if n in by_n:
+                    apply_scores(c, by_n[n], config, topic_names)
+                else:
+                    still.append(c)
+            if b_idx < len(batches) - 1:
+                time.sleep(pause_s)
+        if still and attempt < passes:
+            print(f"[judge] retrying {len(still)} unscored item(s)")
             time.sleep(pause_s)
-    return unjudged
+        pending = still
+    for c in pending:
+        fallback_text(c)
+    return len(pending)

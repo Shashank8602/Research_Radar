@@ -185,7 +185,7 @@ def test_judge_all_scores_every_item_in_batches():
 def test_judge_all_degrades_items_the_llm_skipped():
     cfg = load_config()
     cs = [cand(i, judged=False, snippet="First sentence. Second one. Third.") for i in range(3)]
-    unjudged = judge.judge_all(cs, cfg, router=FakeRouter(skip={2}), pause_s=0)
+    unjudged = judge.judge_all(cs, cfg, router=FakeRouter(skip={2}), pause_s=0, passes=1)
     assert unjudged == 1 and not cs[1].judged and cs[1].summary == "First sentence. Second one."
 
 
@@ -239,3 +239,28 @@ def test_collect_all_isolates_failing_sources(monkeypatch):
     assert [i.url for i in result.items] == ["https://a.com/1"]
     assert "arxiv" in result.failed and "hn" in result.failed
     assert any(r.source == "hf_papers" and r.error is None for r in result.reports)
+
+
+def test_select_top_balances_topics():
+    cfg = load_config()
+    cfg.filter.top_n = 10
+    big = [cand(i, filter_score=0.9 - i / 100, nearest_topic="memory-context") for i in range(20)]
+    small = [cand(100 + i, filter_score=0.2, nearest_topic="rag-retrieval") for i in range(3)]
+    top = flt.select_top(big + small, cfg)
+    topics = [c.nearest_topic for c in top]
+    assert len(top) == 10
+    assert topics.count("rag-retrieval") >= 2  # floor protects the smaller topic
+    assert topics.count("memory-context") <= 8
+
+
+def test_judge_retries_skipped_items_in_second_pass():
+    class Flaky(FakeRouter):
+        def completion(self, **kw):
+            self.skip = {2} if self.calls == 0 else set()  # first call skips item 2
+            return super().completion(**kw)
+
+    cfg = load_config()
+    cs = [cand(i, judged=False) for i in range(3)]
+    router = Flaky()
+    assert judge.judge_all(cs, cfg, router=router, pause_s=0) == 0
+    assert all(c.judged for c in cs) and router.calls == 2

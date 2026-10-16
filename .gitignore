@@ -8,3 +8,5 @@ __pycache__/
 CLAUDE.local.md
 .claude/settings.local.json
 evals/candidate_pool/*.jsonl
+worker/.wrangler/
+worker/node_modules/

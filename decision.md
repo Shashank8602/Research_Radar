@@ -18,7 +18,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-010 | 0 | Gmail SMTP first, behind an adapter | Accepted |
 | D-011 | 0 | Provider-agnostic structured output | Accepted |
 | D-012 | 0 | Explicit Langfuse generations, not LiteLLM callback | Accepted |
-| D-013 | 0 | Pin model IDs from live provider lists | Accepted |
+| D-013 | 0 | Pin model IDs from live provider lists | Accepted (Gemini ID updated in D-037) |
 | D-014 | 0 | Direct psycopg, SQL migrations, partial unique index lock | Accepted |
 | D-015 | 0 | Python 3.11 and uv via pip | Accepted |
 | D-016 | 0 | Temporary read-only dev console | Accepted |
@@ -36,6 +36,13 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-028 | 1 | Scheduled workflow: 07:00 IST, serialized, cached model | Accepted |
 | D-029 | 1 | Lint: ignore E501; dev console uses st.iframe | Accepted |
 | D-030 | 1 | Digest written in plain language with a scenario example | Accepted |
+| D-031 | 2 | Feedback: signed links to a Worker, writes via one locked-down database function | Accepted |
+| D-032 | 2 | Golden labels live in a database table, labeled in the dev console | Accepted |
+| D-033 | 2 | Anchors are real papers looked up on arXiv | Accepted |
+| D-034 | 2 | Topic-balanced shortlist for the judge | Accepted |
+| D-035 | 2 | Judge reliability: retry pass, pacing, hard timeouts | Accepted |
+| D-036 | 2 | Text buttons instead of emoji for feedback | Accepted |
+| D-037 | 2 | LLM chain fixes: Gemini 3.5 Flash-Lite, per-model timeouts, low reasoning effort | Accepted |
 
 ---
 
@@ -225,3 +232,53 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Guardrail:** Examples must start with "Imagine" and must not state results, numbers or abilities absent from the snippet, so the plain version stays honest.
 - **Known limit:** Some terms still slip through ("reinforcement learning", "training-free", method names). Tightening is cheap via the glossary in `judge.py`. A later eval can score "understandable without help" with an LLM judge or by asking the reader.
 - **Rejected:** Adding a separate glossary section to the email (more to read); keeping scores in the email (meaningless to a newcomer); two versions of each digest, simple and technical (double the tokens, split attention).
+
+---
+
+## Phase 2: Feedback and evals
+
+### D-031: Feedback via signed links to a Worker, writing through one locked-down database function
+- **Problem:** Email links must record 👍/👎/save without exposing the database, without mail scanners creating phantom votes, and without anyone forging or replaying votes.
+- **Decision:**
+  - The pipeline mints one token per item and action (`radar.feedback.mint`): base64url JSON `{nonce, item, run, action, expiry}` plus an HMAC-SHA256 signature, valid 30 days. The nonce is stored in `feedback_tokens`.
+  - A Cloudflare Worker (`worker/src/index.js`) serves `/f/<token>`. A GET only shows a confirm page (it reads a headline through a database function and changes nothing), so scanners pre-fetching links do no harm. Only the button's POST records the vote.
+  - The Worker verifies the signature and expiry, then calls the database function `record_feedback`, which re-checks the nonce (exists, unused, matches item/run/action, not expired), marks it used and upserts the vote. A second click returns "already recorded"; an up vote replaces a down vote and vice versa.
+  - The Worker only holds the Supabase publishable key. Migration `0004` enables row-level security on every table, revokes all table access from the public roles, and grants them execute on exactly two functions (`feedback_token_info`, `record_feedback`). Checked live: direct table reads with the key return 401, and a bogus token returns "invalid".
+  - A Python-minted token is verified by the Worker's JavaScript in a cross-language test.
+- **Why:** Defence in depth: a leaked publishable key can do nothing but redeem a valid unused token, and the signing secret never leaves the pipeline and the Worker.
+- **Rejected:** Direct GET-to-vote links (scanners), a service-role key in the Worker (too powerful), putting the vote logic in the Worker with raw SQL (no good way to connect).
+
+### D-032: Golden labels live in a database table, labeled in the dev console
+- **Problem:** The plan said `golden_set.jsonl`, but CI is ephemeral and labels should sit next to the data they refer to.
+- **Decision:** Table `golden_labels(item_id, relevant, labeled_at)`. The dev console's Labeling page shows one item at a time (plain-language headline, summary, original title, link) with Relevant / Not relevant / Skip buttons, mixing items that made the digest with ones that did not (hard negatives). It is the only dev console page that writes, and only to that table.
+- **Why:** Labels survive across machines, join directly with scores for the ablation, and the page is a single click per item.
+
+### D-033: Anchors are real papers looked up on arXiv
+- **Problem:** Topic definitions came from a one-sentence description plus keywords, and the user had no list of favourite papers.
+- **Decision:** I picked 2-4 well-known papers per topic (ReAct, Self-RAG, MT-Bench, MemGPT, AgentDojo, ...), fetched their real titles and abstracts from the arXiv API (21 of 22 found), and stored them as plain text under `anchors` in `topics.yaml`, with the arXiv link in a comment. The topic vector is the mean of the description and its anchors.
+- **Why:** Concrete examples define a topic better than a description, and starting from famous papers avoids asking the user for knowledge they don't have. They can edit or extend the list any time.
+- **Open:** Anchors skew to classic work; the feedback score and labels will refine the real taste. `enterprise-genai` has only 2 anchors because it is poorly covered by arXiv.
+
+### D-034: Topic-balanced shortlist for the judge
+- **Problem:** After anchors were added, one topic (memory) took 9 of 17 shortlist slots, crowding out RAG.
+- **Decision:** `select_top` guarantees each topic its best 2 items (if it has them), then fills by score with no topic above 30% of the slots (first tried 40%, which still let memory take 12 of 33), relaxing the cap only if slots would otherwise stay empty.
+- **Why:** The digest should cover the user's whole set of topics, and the judge's effort should not be spent on one broad topic. Tested with a synthetic skewed pool.
+
+### D-035: Judge reliability: retry pass, pacing, hard timeouts
+- **Problem:** After the plain-language fields were added, 4-7 of ~17 items came back unscored (valid JSON, missing items), and one run hung for over 10 minutes.
+- **Decision:** `judge_all` retries skipped or failed items in a second pass, waits 4 seconds between batches (free-tier tokens per minute), logs fallbacks and failures, and the router now has a 90-second hard timeout per attempt. Anything still unscored degrades to snippet text as before.
+- **Why:** A daily job must finish and must score what it can; a hung provider must never stall the run.
+
+### D-036: Text buttons instead of emoji for feedback
+- **Problem:** 👍/👎/🔖 looked informal and unclear in the email.
+- **Decision:** Each item ends with three pill-shaped text buttons: **More like this** (filled, primary), **Less like this** and **Save for later** (outlined). The Worker's confirm page uses the same wording ("Show you more items like this one?" → "Yes, more like this"), a clean "Research Radar" card, and a CSS tick or warning mark instead of emoji. A fourth button, **Explain in depth**, arrives with the Phase 3 deep-dive (the Worker already knows that action).
+- **Why:** States the effect of the click rather than a vague like/dislike, looks professional in any mail client, and maps directly to the stored actions (`up`, `down`, `save`).
+
+### D-037: LLM chain fixes: Gemini 3.5 Flash-Lite, per-model timeouts, low reasoning effort
+- **Problem:** A run stalled for 5+ minutes. Diagnosis: Groq's free tier caps `gpt-oss-120b` at 200,000 tokens per day and a day of test runs used it up; the Gemini fallback `gemini-2.5-flash-lite` now returns 404 ("no longer available to new users"); so every batch fell through to the free OpenRouter model, which took ~5 minutes per call.
+- **Decision:**
+  - Gemini fallback pinned to `gemini-3.5-flash-lite` (the replacement Google's error names; verified, ~10-18 s per judge batch).
+  - Timeouts (75 s) are set on each model deployment, not just the router, and retries drop to 1, so a rate-limited or slow provider is skipped quickly.
+  - `reasoning_effort: low` for gpt-oss models: most of its output tokens were hidden reasoning, which scoring does not need. This roughly halves token use per run.
+- **Why:** One daily run uses ~30-40k Groq tokens, well inside the limit, but development runs can exhaust it; the chain must then degrade to a fast fallback, not a slow one.
+- **Watch:** Avoid many full runs on the same day while developing; use `--top-n 8` for iteration.

@@ -17,7 +17,7 @@ from datetime import date
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from radar import compose, db, dedupe, tracing
+from radar import compose, db, dedupe, feedback, tracing
 from radar import diversify as diversify_stage
 from radar import filter as filter_stage
 from radar import judge as judge_stage
@@ -193,10 +193,17 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
     _dump_pool(run_id, digest_date, top, {c.id for c in chosen})
 
     # 6. compose + send
+    env = get_env()
+    link_map = None
+    if send_email and chosen and env.feedback_signing_secret and env.feedback_base_url:
+        link_map = feedback.create_links(
+            conn, run_id, chosen, base_url=env.feedback_base_url, secret=env.feedback_signing_secret
+        )
     with tracing.stage_span("compose-digest", input={"items": len(chosen), "degraded": degraded}) as span:
         ctx = compose.build_context(
             chosen, digest_date=digest_date, run_id=run_id, degraded=degraded,
             topic_labels={t.name: t.label or t.name for t in config.topics},
+            links=(lambda c: link_map[c.id]) if link_map else None,
         )
         html, text = compose.render(ctx)
         span.update(output={"items": len(chosen), "html_chars": len(html)})

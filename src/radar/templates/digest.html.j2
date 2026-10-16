@@ -32,10 +32,10 @@
     <div style="font-size:11px;color:#8a8d91;margin-top:10px;">Original title: {{ it.original_title }}</div>
     {% endif %}
     {% if it.links %}
-    <div style="font-size:13px;margin-top:10px;">
-      <a href="{{ it.links.up }}" style="text-decoration:none;margin-right:12px;">&#128077;</a>
-      <a href="{{ it.links.down }}" style="text-decoration:none;margin-right:12px;">&#128078;</a>
-      <a href="{{ it.links.deepdive }}" style="color:#0b57d0;text-decoration:none;">Explain more</a>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eef0f3;">
+      <a href="{{ it.links.up }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #0b57d0;border-radius:999px;background:#0b57d0;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">More like this</a>
+      <a href="{{ it.links.down }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Less like this</a>
+      <a href="{{ it.links.save }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Save for later</a>
     </div>
     {% endif %}
   </div>

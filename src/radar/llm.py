@@ -13,6 +13,8 @@ from radar.config import AppConfig, Env, get_env, load_config
 
 T = TypeVar("T", bound=BaseModel)
 
+REQUEST_TIMEOUT_S = 75
+
 _KEY_FOR_PROVIDER = {
     "groq": "groq_api_key",
     "gemini": "gemini_api_key",
@@ -30,14 +32,24 @@ def build_router(config: AppConfig | None = None, env: Env | None = None) -> Rou
     chain = [config.models.judge, *config.models.fallbacks]
     model_list = []
     for i, model in enumerate(chain):
-        params = {"model": model}
+        # Hard timeout per attempt, set on each deployment: a slow or hung provider (free
+        # OpenRouter models can take minutes) must never stall the daily run.
+        params = {"model": model, "timeout": REQUEST_TIMEOUT_S, "stream_timeout": REQUEST_TIMEOUT_S}
         key = _api_key(model, env)
         if key:
             params["api_key"] = key
+        if "gpt-oss" in model:
+            # gpt-oss spends most output tokens on hidden reasoning; scoring doesn't need much,
+            # and Groq's free tier caps tokens per day.
+            params["reasoning_effort"] = "low"
         name = "judge" if i == 0 else f"judge-fb{i}"
         model_list.append({"model_name": name, "litellm_params": params})
     fallbacks = [{"judge": [m["model_name"] for m in model_list[1:]]}] if len(chain) > 1 else []
-    return Router(model_list=model_list, fallbacks=fallbacks, num_retries=2, retry_after=5)
+    # A rate-limited provider (429) is skipped quickly instead of retried for minutes.
+    return Router(
+        model_list=model_list, fallbacks=fallbacks, num_retries=1, retry_after=2,
+        timeout=REQUEST_TIMEOUT_S,
+    )
 
 
 _SCHEMA_INSTRUCTION = (

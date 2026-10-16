@@ -17,6 +17,8 @@ from radar.models import Candidate
 COS_LO, COS_HI = 0.35, 0.80
 POP_CAP = 200
 WATCHLIST_KEEP = 6
+TOPIC_FLOOR = 2
+CAP_SHARE = 0.3
 
 
 def build_topic_vectors(config: AppConfig) -> dict[str, np.ndarray]:
@@ -94,7 +96,39 @@ def score_candidates(
 
 
 def select_top(cands: list[Candidate], config: AppConfig) -> list[Candidate]:
-    """Top N regular items plus the best few watchlist releases (their own digest section)."""
+    """Top N regular items, balanced across topics, plus the best few watchlist releases.
+
+    Each topic is guaranteed its best FLOOR items (if it has them); the rest are filled by score,
+    with no topic taking more than CAP_SHARE of the slots. This stops one broad topic (e.g. memory)
+    from crowding the others out of the judge's shortlist.
+    """
+    n = config.filter.top_n
     regular = sorted((c for c in cands if not c.is_watchlist), key=lambda c: -c.filter_score)
     watch = sorted((c for c in cands if c.is_watchlist), key=lambda c: -c.filter_score)
-    return regular[: config.filter.top_n] + watch[:WATCHLIST_KEEP]
+
+    picked: list[Candidate] = []
+    count: dict[str, int] = {}
+    ids: set[str] = set()
+
+    def take(c: Candidate) -> None:
+        picked.append(c)
+        ids.add(c.id)
+        count[c.nearest_topic] = count.get(c.nearest_topic, 0) + 1
+
+    for topic in {c.nearest_topic for c in regular}:  # guaranteed floor per topic
+        for c in [c for c in regular if c.nearest_topic == topic][:TOPIC_FLOOR]:
+            if len(picked) < n:
+                take(c)
+    cap = max(TOPIC_FLOOR, math.ceil(CAP_SHARE * n))
+    for c in regular:  # fill by score under the cap
+        if len(picked) >= n:
+            break
+        if c.id not in ids and count.get(c.nearest_topic, 0) < cap:
+            take(c)
+    for c in regular:  # if the cap left slots empty, relax it
+        if len(picked) >= n:
+            break
+        if c.id not in ids:
+            take(c)
+    picked.sort(key=lambda c: -c.filter_score)
+    return picked + watch[:WATCHLIST_KEEP]

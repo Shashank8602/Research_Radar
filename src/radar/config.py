@@ -26,6 +26,8 @@ class Env(BaseSettings):
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
+    feedback_signing_secret: str | None = None  # HMAC key shared with the Worker
+    feedback_base_url: str | None = None  # e.g. https://research-radar-feedback.<sub>.workers.dev
     app_env: str = "development"  # development | production -> Langfuse environment
     app_release: str | None = None  # e.g. git sha, set by CI
 

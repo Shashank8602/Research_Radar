@@ -2,7 +2,7 @@ name: daily-digest
 
 on:
   schedule:
-    - cron: "30 1 * * *" # 07:00 IST. GitHub may fire this late; the runs-table lock makes that harmless.
+    - cron: "30 3 * * *" # 09:00 IST. GitHub may fire this late; the runs-table lock makes that harmless.
   workflow_dispatch:
     inputs:
       dry_run:

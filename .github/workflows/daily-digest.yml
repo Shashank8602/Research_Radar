@@ -46,3 +46,8 @@ jobs:
       - run: uv sync --no-dev
       - name: Run pipeline
         run: uv run radar-run ${{ inputs.dry_run && '--dry-run' || '' }}
+      # Storage retention runs after the digest and can never block it.
+      - name: Clean up old data
+        if: always() && !inputs.dry_run
+        continue-on-error: true
+        run: uv run radar-maintain

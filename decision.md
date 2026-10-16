@@ -43,6 +43,13 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-035 | 2 | Judge reliability: retry pass, pacing, hard timeouts | Accepted |
 | D-036 | 2 | Text buttons instead of emoji for feedback | Accepted |
 | D-037 | 2 | LLM chain fixes: Gemini 3.5 Flash-Lite, per-model timeouts, low reasoning effort | Accepted |
+| D-038 | 2 | Vote-based ranking built, switched off until evals justify it | Accepted |
+| D-039 | 2 | Evals are an offline replay of stored scores; LLM checks are opt-in | Accepted |
+| D-040 | 2 | Own faithfulness check instead of DeepEval | Accepted |
+| D-041 | 2 | Plain-language guard: shared glossary, checker, and rewrite pass | Superseded by D-043 |
+| D-042 | 2 | Eval gate in CI with label-count and threshold rules | Accepted |
+| D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
+| D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 
 ---
 
@@ -282,3 +289,76 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   - `reasoning_effort: low` for gpt-oss models: most of its output tokens were hidden reasoning, which scoring does not need. This roughly halves token use per run.
 - **Why:** One daily run uses ~30-40k Groq tokens, well inside the limit, but development runs can exhaust it; the chain must then degrade to a fast fallback, not a slow one.
 - **Watch:** Avoid many full runs on the same day while developing; use `--top-n 8` for iteration.
+
+### D-038: Vote-based ranking built, switched off until evals justify it
+- **Decision:** `radar.personalize` scores a candidate as (weighted mean similarity to its 5 nearest liked items) minus (the same for disliked items), scaled to -1..1. "Save for later" weighs 1.5, "More like this" 1.0, "Less like this" -1.0. Votes are ignored below 5. The score is stored in each item's filter breakdown and can enter ranking in two places: `filter.weights.feedback` (shortlist) and `personalize.final_blend` (final rank). Both are 0.
+- **Why:** Follows D-005 (simple kNN before per-topic centroids). Turning it on is a config change once the ablation shows that a blend beats the current ranker on your labels.
+- **Leakage guard:** the ablation scores each labeled item leave-one-out, so an item's own vote never counts towards its own score.
+
+### D-039: Evals are an offline replay of stored scores; LLM checks are opt-in
+- **Decision:** `radar-eval` joins `golden_labels` with the stored filter components and judge scores of each digest day (latest run per day) and recomputes every ranker with the current config weights: keywords only, embedding only, hybrid filter, hybrid + judge (current), and + votes at blends 0.1/0.2/0.3. It reports P@5 per day and pooled, P@10, average precision and ROC-AUC. The judge is calibrated by sweeping the relevance cut-off (precision, recall, F1, Cohen's kappa). Plain-language checks are deterministic. Only `--faithfulness N` calls an LLM. The report is written to `evals/reports/latest.md` and shown on the dev console's Evals page.
+- **Why:** Free, fast, reproducible, and it answers "what would ranking have been with these weights?" without re-running the pipeline. Changing a weight in `topics.yaml` and re-running shows the effect immediately.
+- **Caveat (in the report):** labels only exist for items that reached the judge, so rankers are compared within the shortlist, not over all ~400 collected items.
+- **Deviation:** labels are 0/1 relevance (not graded), so nDCG was dropped in favour of average precision.
+
+### D-040: Own faithfulness check instead of DeepEval
+- **Problem:** The plan named DeepEval for summary faithfulness. It defaults to OpenAI, adds a large dependency, and its LLM calls would bypass our router, fallbacks and Langfuse tracing.
+- **Decision:** A ~30-line equivalent in `radar.evals.quality`: the LLM lists every factual claim in the summary and marks each as supported by the source (title + abstract) or not; the score is the supported share. It runs through `llm.complete_structured`, so it uses the same fallback chain and appears in Langfuse under a `radar-eval` trace. The "Imagine..." example is excluded because it is an illustration by design.
+- **Why:** Same method (claim extraction + verification), no new dependency, consistent tracing. First run: 5/5 summaries, 100% of claims supported.
+- **Rejected:** DeepEval (dependency and provider coupling for one metric); RAGAS (RAG-specific, same issues).
+
+### D-041: Plain-language guard: shared glossary, checker, and rewrite pass
+- **Problem:** The first eval run showed 45% of recent digest items with unexplained jargon (38% in the latest run, written by the Gemini fallback, which follows the glossary less strictly).
+- **Decision:** `radar.plain` holds the one glossary (jargon → plain wording) and one checker (`unexplained_jargon`: a term counts as explained when bracketed next to plain words). The judge prompt renders the glossary from it. After the digest items are chosen, any item still flagged gets one small LLM rewrite of its four reader fields. The rewrite is kept only if it reduces the flagged terms and keeps the format (example starts with "Imagine", headline length). Added "training-free", "reinforcement learning" and "framework" to the glossary.
+- **Why:** Measuring and fixing with the same rule closes the loop: what the evals flag is exactly what the pipeline repairs. Rewriting only the ~8 chosen items costs one extra call per day.
+- **Guard:** The rewrite prompt forbids changing facts; the faithfulness eval would catch drift.
+
+### D-042: Eval gate in CI with label-count and threshold rules
+- **Decision:** `evals.yml` runs weekly (with a 5-item faithfulness sample), on pull requests touching `src/radar/**` or `topics.yaml`, and on demand. `--gate` fails on: any pinned model ID missing at its provider, jargon rate above 35%, faithfulness below 85% (when checked), and precision@5 of the current ranker below 50%. The ranking check is skipped until 100 labels exist. Thresholds live in `topics.yaml` under `evals:`. The report is uploaded as a workflow artifact.
+- **Why:** Turns silent regressions (a retired model, a prompt change that brings back jargon, a weight change that hurts ranking) into a red CI run, without blocking anything while labels are still being collected.
+
+### D-043: Entries must be specific AND plain
+- **Problem:** The user found that every entry "felt the same" even across topics. Measured on the last digests:
+  - the written entries were *more* alike than the papers they describe (similarity 0.68 vs 0.67);
+  - "AI assistants" appeared 26 times across 5 digests and "new method" 7 times;
+  - about 3 headlines per digest started the same way ("A new ...");
+  - examples reused the settings suggested in the prompt (customer support x4, travel x2, bank);
+  - "why it matters" lines were stock phrases ("find and fix problems", "helps developers");
+  - selection: 4 of 6 research picks were labelled "AI agents", and two picks were the same idea.
+  Root causes: the glossary forced every term into the same generic phrase; the prompt listed example settings;
+  "agents" absorbed any paper that mentioned agents; the core section had no topic limit.
+- **First attempt (overcorrected):** specificity rules made entries distinct (0 shared headline openings, 5 different
+  topics in the top 5) but technical: reading level jumped to grade 14.3 ("approximate nearest-neighbor indexes",
+  "effect binding"). Earlier plain digests read at grade 8.7-10.3.
+- **Decision:**
+  - Each topic in `topics.yaml` gets an `angle` (what the reader cares about) and the agents topic a `scope_note`;
+    the judge picks the most specific topic.
+  - Writing rules hold two things at once: SPECIFIC about what was found (finding, situation, a concrete detail)
+    and PLAIN about how it works (everyday descriptions). At most one technical term per entry, explained once in
+    brackets; none in headlines or why-it-matters. A three-way calibration example (too generic / too technical /
+    just right) is in the prompt. Examples come from the item's own domain; tool releases get no invented scenario.
+  - Vocabulary moved from "replace every term" to "explain once, then use the precise term" (`plain.item_jargon`,
+    which also accepts explanations a few words after the term).
+  - An editor pass reads all chosen entries together and makes them plain and distinct. Per entry it is kept only
+    if format holds, jargon does not increase and the reading grade does not rise (small slack when it removes
+    jargon); overall only if entries do not become noticeably more alike.
+  - Selection: at most 2 core picks per topic; MMR lambda 0.6; the exploration slot prefers a topic not yet shown.
+  - Evals now measure variety (written vs source similarity, shared headline openings, phrases repeated across
+    3+ entries) and reading level (Flesch-Kincaid grade, limit 11), with gate thresholds in `topics.yaml`.
+- **Why:** "Feels the same" and "too technical" are both measurable; fixing one without measuring the other swung
+  the output from one failure to the other.
+
+### D-044: Storage retention
+- **Problem:** ~200 new items a day at ~5 KB each is ~380 MB a year; the free Supabase tier is ~500 MB. Only ~6% of
+  items ever reach a digest.
+- **Decision:** `radar-maintain` runs after each daily digest (its own step, `continue-on-error`, so it can never
+  block the email). Items that were in a real digest, got a vote, or have a golden label are kept forever. Others:
+  slimmed after 30 days (abstract and embedding dropped, about 90% of the row; title and link kept so the item is
+  still recognised; a re-collected item is re-embedded and its abstract restored), deleted after 180 days with their
+  scores. Test runs older than 14 days lose their digests and the scores of unlabeled items; run rows still
+  referenced by votes are kept. Feedback-link tokens go 7 days after expiry. A warning prints above 400 MB.
+  `--preview` reports what would change inside a rolled-back transaction.
+- **Verified:** sandbox run (backdated rows, rolled back): 100 deleted, 197 slimmed, 18 of 19 test runs removed and
+  the 1 run referenced by votes kept; nothing changed afterwards.
+- **Rejected:** a soft-delete "trash" flag on every table (more queries to filter it everywhere); keeping
+  everything (fills the free tier in ~15 months).

@@ -16,7 +16,7 @@ If code and docs disagree, fix the docs in the same change.
 
 ## Current status
 
-Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Next: Phase 2 (feedback + evals). See [flow.md](flow.md) for the stage-by-stage status table.
+Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Next: Phase 3 (deep dive). See [flow.md](flow.md) for the stage-by-stage status table.
 
 ## Commands
 
@@ -32,6 +32,9 @@ python -m uv run radar-run --dry-run --email      # ...and email me the digest
 python -m uv run radar-run              # REAL run: takes today's lock and emails (normally CI does this)
 python -m uv run radar-smoke --no-db --no-email   # partial runs while debugging
 python -m uv run streamlit run devui/app.py       # temporary dev console (local only)
+python -m uv run radar-maintain --preview   # storage retention: what would be slimmed/deleted
+python -m uv run radar-eval              # offline evals report -> evals/reports/latest.md (no LLM calls)
+python -m uv run radar-eval --check-models --faithfulness 5 --gate   # what CI runs weekly
 ```
 
 GitHub CLI: `C:\Program Files\GitHub CLI\gh.exe` (not on the bash PATH by default; add it to PATH).
@@ -59,7 +62,8 @@ Planned (not built yet): `agent/` (LangGraph deep dive), `worker/` (Cloudflare W
 - **Typed stages.** Each pipeline stage is a plain function over Pydantic objects. SQL for dedupe/vector/novelty queries; Python for MMR and composition.
 - **LLM calls** go through `radar.llm.complete_structured` (JSON mode + Pydantic validation + one repair retry). Do not call providers directly, and do not use the LiteLLM Langfuse callback (see decision D-012).
 - **Tracing.** Every pipeline run is one Langfuse trace (`radar-digest-run`). Use `tracing.traced_stage` / `stage_span` with stable verb-first names; put run-specific values in metadata, never in names. Set explicit small `input`/`output`, never raw args. Call `tracing.flush()` before a process exits. Verify new instrumentation by fetching the trace back (`langfuse-cli`, see the skill) and auditing it.
-- **Reader-facing text is plain language.** The digest audience is a curious non-expert: no unexplained jargon, short sentences, an "Imagine..." example per item (illustration only, no invented facts). Change the wording rules in the glossary inside `judge.py`, not ad hoc.
+- **Reader-facing text is specific AND plain** (D-043): each entry says exactly what was found, in everyday words; at most one explained technical term; examples from the item's own domain; distinct from the other entries. Check `radar-eval` (reading grade, variety) after any prompt change.
+- **Plain-language details.** The digest audience is a curious non-expert: no unexplained jargon, short sentences, an "Imagine..." example per item (illustration only, no invented facts). Change the wording rules in `plain.py` (one glossary + checker used by the judge prompt, the rewrite pass and the evals), not ad hoc.
 - **Idempotent runs.** The `runs` table is the lock: one real (non-dry) run per `digest_date`. Dry runs are exempt. Never send a digest without first claiming the run.
 - **Degrade, don't die.** A failing source or exhausted LLM fallback should produce a degraded digest, not no digest.
 - **Dev console isolation.** Nothing in `src/` imports `devui/`. It is read-only, local only, holds no business logic. Logic a page needs belongs in `src/radar/`.

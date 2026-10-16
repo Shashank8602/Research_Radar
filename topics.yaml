@@ -22,7 +22,28 @@ judge:
   min_relevance: 4.0
 
 diversify:
-  mmr_lambda: 0.7
+  mmr_lambda: 0.6          # lower = more variety in the top picks
+  max_per_topic: 2         # at most 2 top picks from the same topic
+
+personalize:               # vote-based ranking; off (0) until the evals show it helps (D-038)
+  k: 5
+  min_votes: 5
+  final_blend: 0.0
+
+retention:                 # storage clean-up by `radar-maintain` (D-044); digest/voted/labeled items are kept forever
+  slim_after_days: 30        # drop abstract + embedding, keep title and link
+  delete_after_days: 180     # then delete
+  dry_run_keep_days: 14      # test runs
+  token_grace_days: 7        # expired feedback links
+  warn_db_mb: 400            # free tier is ~500 MB
+
+evals:                     # thresholds for `radar-eval --gate` (D-042)
+  min_labels_for_gate: 100
+  min_precision_at_5: 0.5
+  max_jargon_rate: 0.35
+  max_reading_grade: 11      # Flesch-Kincaid grade; ~8 easy, 12 end of high school
+  min_faithfulness: 0.85
+  max_sameness_gap: 0.03     # writing must not make entries more alike than their sources (D-043)
 
 digest:
   sections:
@@ -33,6 +54,8 @@ digest:
 topics:
   - name: agentic-systems
     label: AI agents
+    angle: how an AI plans multi-step work, chooses and uses tools, and hands work to other AIs
+    scope_note: use only when the item is about HOW agents plan, use tools or coordinate; if agents are merely the setting, pick the more specific topic
     weight: 1.0
     description: >
       Designing, orchestrating and making reliable LLM agents: multi-agent patterns,
@@ -49,6 +72,7 @@ topics:
 
   - name: rag-retrieval
     label: AI that looks things up (RAG)
+    angle: how an AI finds the right documents or facts, and whether its answer actually uses them
     weight: 1.0
     description: >
       Retrieval-augmented generation techniques: hybrid search, rerankers, GraphRAG,
@@ -65,6 +89,7 @@ topics:
 
   - name: llmops-evals
     label: Testing and monitoring AI
+    angle: how you measure whether an AI works, watch it in use, and control its cost and speed
     weight: 1.0
     description: >
       Evaluating, monitoring and operating LLM applications: LLM-as-judge, eval frameworks
@@ -81,6 +106,7 @@ topics:
 
   - name: memory-context
     label: AI memory
+    angle: what an AI remembers, forgets, summarizes or keeps in view across a long task or many conversations
     weight: 1.0
     description: >
       How agents store, retrieve and compress state across sessions: long-term memory,
@@ -97,6 +123,7 @@ topics:
 
   - name: agent-security
     label: AI safety and security
+    angle: how an AI can be attacked, misused or go wrong, and what defends against it
     weight: 1.0
     description: >
       Securing LLM agents: prompt injection and jailbreak defenses, tool-permission design,
@@ -112,6 +139,7 @@ topics:
 
   - name: enterprise-genai
     label: AI in real companies
+    angle: "what a real team learned when putting AI into production: what broke, what it cost, what they changed"
     weight: 1.0
     description: >
       Case studies, architecture write-ups and lessons from teams shipping RAG and agents to

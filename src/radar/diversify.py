@@ -8,23 +8,41 @@ from radar.config import AppConfig
 from radar.models import Candidate
 
 
-def mmr_select(cands: list[Candidate], k: int, lam: float) -> list[Candidate]:
-    """Maximal Marginal Relevance: balance rank against similarity to already-picked items."""
+def topic_of(c: Candidate) -> str:
+    return c.best_topic or c.nearest_topic
+
+
+def mmr_select(
+    cands: list[Candidate], k: int, lam: float, max_per_topic: int | None = None
+) -> list[Candidate]:
+    """Maximal Marginal Relevance: balance rank against similarity to already-picked items.
+
+    With `max_per_topic`, no topic takes more than that many slots while other topics still have
+    eligible items (the cap is relaxed only if slots would otherwise stay empty).
+    """
     if not cands or k <= 0:
         return []
     top = max(c.final_rank for c in cands) or 1.0
     vecs = {c.id: np.asarray(c.embedding, dtype=np.float32) for c in cands}
     chosen: list[Candidate] = []
     pool = list(cands)
-    while pool and len(chosen) < k:
-        def mmr(c: Candidate) -> float:
-            rel = c.final_rank / top
-            if not chosen:
-                return rel
-            sim = max(float(vecs[c.id] @ vecs[s.id]) for s in chosen)
-            return lam * rel - (1 - lam) * sim
 
-        best = max(pool, key=mmr)
+    def mmr(c: Candidate) -> float:
+        rel = c.final_rank / top
+        if not chosen:
+            return rel
+        sim = max(float(vecs[c.id] @ vecs[s.id]) for s in chosen)
+        return lam * rel - (1 - lam) * sim
+
+    while pool and len(chosen) < k:
+        allowed = pool
+        if max_per_topic:
+            counts: dict[str, int] = {}
+            for s in chosen:
+                counts[topic_of(s)] = counts.get(topic_of(s), 0) + 1
+            under_cap = [c for c in pool if counts.get(topic_of(c), 0) < max_per_topic]
+            allowed = under_cap or pool
+        best = max(allowed, key=mmr)
         chosen.append(best)
         pool.remove(best)
     return chosen
@@ -41,7 +59,10 @@ def select_digest(cands: list[Candidate], config: AppConfig) -> list[Candidate]:
     regular = [c for c in cands if not c.is_watchlist and _eligible(c, min_rel)]
     watch = [c for c in cands if c.is_watchlist and _eligible(c, min_rel / 2)]
 
-    core = mmr_select(regular, quotas.get("core", 5), config.diversify.mmr_lambda)
+    core = mmr_select(
+        regular, quotas.get("core", 5), config.diversify.mmr_lambda,
+        max_per_topic=config.diversify.max_per_topic,
+    )
     taken = {c.id for c in core}
 
     watchlist = sorted(watch, key=lambda c: -c.final_rank)[: quotas.get("watchlist", 2)]
@@ -51,8 +72,12 @@ def select_digest(cands: list[Candidate], config: AppConfig) -> list[Candidate]:
     explore: list[Candidate] = []
     if rest and quotas.get("exploration", 0) > 0:
         top = max(c.final_rank for c in rest) or 1.0
+        core_topics = {topic_of(c) for c in core}
         pick = max(
-            rest, key=lambda c: 0.5 * (c.final_rank / top) + 0.5 * (1 - c.filter_parts.get("cosine", 0))
+            rest,
+            key=lambda c: 0.5 * (c.final_rank / top)
+            + 0.5 * (1 - c.filter_parts.get("cosine", 0))
+            + (0.3 if topic_of(c) not in core_topics else 0.0),  # prefer a topic not yet shown
         )
         explore = [pick]
 

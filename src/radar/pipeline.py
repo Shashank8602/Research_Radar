@@ -17,7 +17,7 @@ from datetime import date
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from radar import compose, db, dedupe, feedback, tracing
+from radar import compose, db, dedupe, feedback, personalize, tracing
 from radar import diversify as diversify_stage
 from radar import filter as filter_stage
 from radar import judge as judge_stage
@@ -160,13 +160,20 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
         "filter-candidates", input={"candidates": len(kept), "top_n": config.filter.top_n}
     ) as span:
         topic_vecs = filter_stage.build_topic_vectors(config)
-        scored = filter_stage.score_candidates(kept, config, topic_vecs)
+        votes = personalize.load_votes(conn)
+        fb_scores = personalize.feedback_scores(kept, votes, config.personalize)
+        scored = filter_stage.score_candidates(kept, config, topic_vecs, feedback=fb_scores)
+        in_use = config.filter.weights.feedback or config.personalize.final_blend
+        vote_use = ("too few to use" if not fb_scores else
+                    "affecting ranking" if in_use else "scored, weights 0 so not affecting ranking")
         top = filter_stage.select_top(scored, config)
         summary.n_filtered = len(top)
         by_topic = Counter(c.nearest_topic for c in top)
         span.update(output={"scored": len(scored), "selected": len(top)},
-                    metadata={"by_topic": dict(by_topic)})
-        print(f"[filter] {len(scored)} fresh -> top {len(top)} {dict(by_topic)}")
+                    metadata={"by_topic": dict(by_topic), "votes": len(votes),
+                              "feedback_active": bool(fb_scores)})
+        print(f"[filter] {len(scored)} fresh -> top {len(top)} {dict(by_topic)}; "
+              f"votes: {len(votes)} ({vote_use})")
 
     # 4. judge
     with tracing.stage_span(
@@ -174,6 +181,7 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
         input={"items": len(top), "batch_size": config.judge.batch_size, "model": config.models.judge},
     ) as span:
         summary.n_unjudged = judge_stage.judge_all(top, config)
+        personalize.apply_final_blend(top, fb_scores, config.personalize.final_blend)
         span.update(output={"judged": len(top) - summary.n_unjudged,
                             "unjudged": summary.n_unjudged})
         print(f"[judge] {len(top) - summary.n_unjudged}/{len(top)} judged")
@@ -186,6 +194,17 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
         chosen = diversify_stage.select_digest(top, config)
         span.update(output={"selected": [(c.section, c.title[:80]) for c in chosen]})
         print(f"[diversify] {Counter(c.section for c in chosen)}")
+
+    # 5b. editor pass: read the chosen entries together, make each distinct, explain leftover jargon
+    flagged = {c.id: judge_stage.jargon_in(c) for c in chosen if judge_stage.jargon_in(c)}
+    with tracing.stage_span("edit-digest", input={"entries": len(chosen), "flagged": flagged}) as span:
+        rep = judge_stage.edit_digest(chosen, config)
+        left = {c.id: judge_stage.jargon_in(c) for c in chosen if judge_stage.jargon_in(c)}
+        span.update(output={**rep, "still_flagged": left})
+        print(f"[edit] {'kept' if rep['kept'] else 'not kept'}: {rep['edited']}/{rep['entries']} entries "
+              f"edited; similarity {rep['similarity_before']} -> {rep['similarity_after']}; "
+              f"reading grade {rep['grade_before']} -> {rep['grade_after']}; "
+              f"jargon flagged {len(flagged)} -> {len(left)}")
 
     judge_model = config.models.judge
     _persist_scores(conn, run_id, top, judge_model)

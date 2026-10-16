@@ -109,6 +109,25 @@ def run_trace(run_id: str | None, digest_date: str, dry_run: bool) -> Iterator[s
                 raise
 
 
+@contextmanager
+def eval_trace(input: dict[str, Any]) -> Iterator[Any]:
+    """Root observation for one `radar-eval` run (only its LLM checks make it worth tracing).
+    Yields the root span (a no-op object when tracing is disabled)."""
+    if not _enabled:
+        yield _NoopSpan()
+        return
+    from langfuse import propagate_attributes
+
+    lf = _client()
+    with lf.start_as_current_observation(as_type="span", name="radar-eval", input=input) as root:
+        with propagate_attributes(trace_name="radar-eval", tags=["eval"]):
+            try:
+                yield root
+            except Exception as e:
+                root.update(level="ERROR", status_message=str(e)[:300])
+                raise
+
+
 class _NoopSpan:
     def update(self, **_: Any) -> None:
         pass

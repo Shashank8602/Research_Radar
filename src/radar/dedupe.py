@@ -13,7 +13,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import numpy as np
 import psycopg
 
-from radar.embed import embed_texts, item_text
+from radar.embed import as_list, embed_texts, item_text
 from radar.models import Candidate, RawItem
 
 _TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|ref|ref_src|source|mc_cid|mc_eid|igshid|share)$", re.I)
@@ -35,13 +35,6 @@ def canonical_url(url: str) -> str:
     query = urlencode([(k, v) for k, v in parse_qsl(p.query) if not _TRACKING.match(k)])
     path = path.rstrip("/") or "/"
     return urlunparse(("https", host, path, "", query, ""))
-
-
-def _as_list(emb) -> list[float]:
-    """pgvector returns Vector objects; freshly computed embeddings are numpy arrays."""
-    if hasattr(emb, "to_list"):
-        return [float(x) for x in emb.to_list()]
-    return [float(x) for x in emb]
 
 
 def content_hash(title: str) -> str:
@@ -128,6 +121,7 @@ def persist_and_load(
             "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
             "on conflict (canonical_url) do update set "
             "popularity = greatest(items.popularity, excluded.popularity), "
+            "snippet = coalesce(items.snippet, excluded.snippet), "
             "embedding = coalesce(items.embedding, excluded.embedding), "
             "embedding_model = coalesce(items.embedding_model, excluded.embedding_model) "
             "returning id, embedding",
@@ -147,7 +141,7 @@ def persist_and_load(
                 snippet=it.snippet,
                 popularity=it.popularity,
                 is_watchlist=it.is_watchlist,
-                embedding=_as_list(emb),
+                embedding=as_list(emb),
             )
         )
     conn.commit()

@@ -16,12 +16,14 @@ flowchart TD
     L -- already sent today --> X[Exit: nothing to do]
     L -- claimed --> C[Collect<br/>arXiv · HF Papers · HN · RSS · GitHub]
     C --> D[Dedupe<br/>canonical URL · hash · embedding clusters · not recently sent]
-    D --> F[Cheap filter<br/>keywords + cosine to anchors + recency + popularity + feedback]
+    D --> F[Cheap filter<br/>keywords + cosine to anchors + recency + popularity + votes<br/>topic-balanced shortlist]
     F --> J[LLM judge<br/>5-10 items per call, typed scores + rationale + summary]
     J --> M[Diversify<br/>MMR + section quotas + 1 exploration slot]
-    M --> P[Compose HTML<br/>signed feedback + deep-dive links]
+    M --> PL[Editor pass<br/>make entries plain and distinct]
+    PL --> P[Compose HTML<br/>signed feedback links]
     P --> S[Send email]
     S --> R[Mark run sent<br/>write digests, scores, counts, cost, trace id]
+    R --> MT[radar-maintain<br/>slim 30d, delete 180d, keep digest/voted/labeled]
     C -. source fails .-> W[Log, skip source, continue]
     J -. all LLMs fail .-> G[Degraded mode:<br/>filter-score ranking, flagged in email]
     G --> M
@@ -52,6 +54,11 @@ Rules that always hold:
 | Compose | `compose.py` | ✅ |
 | Orchestrator | `pipeline.py` | ✅ |
 | Scheduled workflow | `.github/workflows/daily-digest.yml` | ✅ |
+| Editor pass (plain + distinct) | `plain.py`, `judge.edit_digest` | ✅ |
+| Storage retention | `maintain.py`, `radar-maintain` | ✅ |
+| Vote-based ranking | `personalize.py` (weights 0 until evals justify) | ✅ built, off |
+| Feedback links | `feedback.py`, `worker/` (Cloudflare) | ✅ live |
+| Evals | `evals/` package, `radar-eval`, `evals.yml` | ✅ (waiting for labels) |
 
 ---
 
@@ -108,7 +115,20 @@ sequenceDiagram
     P->>P: rank = stated interests (anchors) blended with revealed interests (kNN)
 ```
 
-Status: ⬜ (Phase 2)
+Buttons in the email: **More like this** (`up`), **Less like this** (`down`), **Save for later** (`save`). Status: ✅ live at `research-radar-feedback.shashu-s08.workers.dev`; votes are stored and scored, but only influence ranking once the evals justify a non-zero weight.
+
+### Evals loop
+
+```mermaid
+flowchart LR
+    L[Labeling page<br/>relevant / not] --> G[(golden_labels)]
+    S[(item_scores per day)] --> E[radar-eval<br/>offline replay]
+    G --> E
+    V[(feedback votes)] --> E
+    E --> T[Ablation table · judge calibration<br/>plain-language · faithfulness · model IDs]
+    T --> W[Change weights in topics.yaml] --> E
+    T --> CI[evals.yml gate]
+```
 
 ---
 
@@ -139,6 +159,7 @@ flowchart TD
     R --> C3[filter-candidates]
     R --> C4[judge-items]
     C4 --> GEN["generation: judge-batch<br/>model · messages · tokens · reasoning"]
+    R --> C4b[edit-digest]
     R --> C5[compose-digest]
     R --> C6[send-email]
 ```
@@ -172,7 +193,7 @@ Environments:
 |---|---|---|
 | 0 Foundations | LLM, DB, email, tracing, CI, secrets, dev console shell | ✅ |
 | 1 Digest MVP | Daily email, labeling started | 🔨 pipeline, workflow, dev console done; 5 unattended mornings pending |
-| 2 Feedback + evals | Votes flow back, precision@5 table | ⬜ |
+| 2 Feedback + evals | Votes flow back, precision@5 table | 🔨 built; waiting for ~250 labels to produce the table |
 | 3 Deep dive | Cited, follow-up-capable chat per item | ⬜ |
 | 4 Polish | Watchlist, dashboard, README, dev console removed | ⬜ |
 | 5 Stretch | Optional extras | ⬜ |

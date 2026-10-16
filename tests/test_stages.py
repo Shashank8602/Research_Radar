@@ -264,3 +264,17 @@ def test_judge_retries_skipped_items_in_second_pass():
     router = Flaky()
     assert judge.judge_all(cs, cfg, router=router, pause_s=0) == 0
     assert all(c.judged for c in cs) and router.calls == 2
+
+
+def test_mmr_topic_cap_spreads_core_across_topics():
+    cs = [cand(i, rank=1 - i / 100, best_topic="agentic-systems", emb=np.eye(4)[i % 4]) for i in range(5)]
+    cs += [cand(10 + i, rank=0.5, best_topic=t, emb=np.eye(4)[i % 4])
+           for i, t in enumerate(["rag-retrieval", "agent-security", "memory-context"])]
+    picked = diversify.mmr_select(cs, 5, 0.6, max_per_topic=2)
+    topics = [diversify.topic_of(c) for c in picked]
+    assert topics.count("agentic-systems") == 2 and len(set(topics)) == 4
+
+
+def test_mmr_topic_cap_relaxes_when_only_one_topic_exists():
+    cs = [cand(i, rank=1 - i / 10, best_topic="agentic-systems") for i in range(5)]
+    assert len(diversify.mmr_select(cs, 5, 0.6, max_per_topic=2)) == 5

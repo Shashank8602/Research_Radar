@@ -33,6 +33,8 @@ devui = [
 [project.scripts]
 radar-smoke = "radar.smoke:main"
 radar-run = "radar.pipeline:main"
+radar-eval = "radar.evals.cli:main"
+radar-maintain = "radar.maintain:main"
 
 [build-system]
 requires = ["hatchling"]

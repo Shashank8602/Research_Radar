@@ -25,5 +25,12 @@ def embed_texts(texts: list[str], model: str = DEFAULT_MODEL) -> np.ndarray:
     return vecs / np.clip(norms, 1e-12, None)
 
 
+def as_list(emb) -> list[float]:
+    """pgvector returns Vector objects; freshly computed embeddings are numpy arrays."""
+    if hasattr(emb, "to_list"):
+        return [float(x) for x in emb.to_list()]
+    return [float(x) for x in emb]
+
+
 def item_text(title: str, snippet: str, max_chars: int = 1000) -> str:
     return f"{title}. {snippet[:max_chars]}".strip()

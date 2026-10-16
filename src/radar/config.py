@@ -70,6 +70,8 @@ class TopicSources(BaseModel):
 class Topic(BaseModel):
     name: str
     label: str = ""  # friendly name shown in the email
+    angle: str = ""  # the reader's lens for this topic; shapes example + why_it_matters
+    scope_note: str = ""  # extra guidance for the judge on when to pick this topic
     weight: float = 1.0
     description: str
     anchors: list[str] = Field(default_factory=list)
@@ -123,7 +125,37 @@ class JudgeConfig(BaseModel):
 
 
 class DiversifyConfig(BaseModel):
-    mmr_lambda: float = 0.7
+    mmr_lambda: float = 0.6
+    max_per_topic: int = 2  # in the core section
+
+
+class PersonalizeConfig(BaseModel):
+    """Vote-based ranking (radar.personalize). Off until the ablation shows a gain."""
+
+    k: int = 5  # nearest voted items considered on each side
+    min_votes: int = 5  # below this, votes are ignored entirely
+    final_blend: float = 0.0  # added to final_rank as blend * score(-1..1)
+
+
+class RetentionConfig(BaseModel):
+    """Storage clean-up (radar.maintain). Items in a real digest, voted on or labeled are kept forever."""
+
+    slim_after_days: int = 30  # drop abstract + embedding, keep title/link
+    delete_after_days: int = 180  # delete the row entirely
+    dry_run_keep_days: int = 14  # test runs' digests and unlabeled scores
+    token_grace_days: int = 7  # feedback-link tokens after expiry
+    warn_db_mb: int = 400  # free tier is ~500 MB
+
+
+class EvalConfig(BaseModel):
+    """Thresholds for `radar-eval --gate` (CI). The gate is skipped until enough labels exist."""
+
+    min_labels_for_gate: int = 100
+    min_precision_at_5: float = 0.5
+    max_jargon_rate: float = 0.35
+    max_reading_grade: float = 11.0  # Flesch-Kincaid grade of digest entries
+    min_faithfulness: float = 0.85
+    max_sameness_gap: float = 0.03  # written entries may be at most this much more alike than sources
 
 
 class AppConfig(BaseModel):
@@ -132,6 +164,9 @@ class AppConfig(BaseModel):
     dedupe: DedupeConfig = Field(default_factory=DedupeConfig)
     judge: JudgeConfig = Field(default_factory=JudgeConfig)
     diversify: DiversifyConfig = Field(default_factory=DiversifyConfig)
+    personalize: PersonalizeConfig = Field(default_factory=PersonalizeConfig)
+    evals: EvalConfig = Field(default_factory=EvalConfig)
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
     digest: DigestConfig
     topics: list[Topic]
     global_sources: GlobalSources = Field(default_factory=GlobalSources)

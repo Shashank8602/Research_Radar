@@ -128,6 +128,8 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 
 **Risks:** labeling is the real cost. Keep the helper quick. Too few positives in a topic makes precision noisy, so report counts alongside the numbers.
 
+**Status (2026-10-17):** 2A live and tested (Worker deployed, scanner/replay/tamper checks pass); 2B built and off; 2C labeling page built (labels pending); 2D/2E built (`radar-eval`, `evals.yml`); 2F pages built. Own faithfulness check replaces DeepEval (D-040); added a plain-language guard (D-041).
+
 **Done when:** voting from a real email works end to end (including the scanner and replay tests), and the README-ready precision@5 table exists and is reproducible with one command.
 
 ---

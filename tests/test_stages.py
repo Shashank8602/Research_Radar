@@ -156,7 +156,8 @@ class FakeRouter:
         n_items = user.count("\n    source:")
         items = [
             JudgeItem(n=n, best_topic="rag-retrieval", relevance=7, novelty=6, actionability=5,
-                      rationale="r", summary="s", why_it_matters="w").model_dump()
+                      rationale="r", headline="h", summary="s", example="Imagine x.",
+                      why_it_matters="w").model_dump()
             for n in range(1, n_items + 1) if n not in self.skip
         ]
 
@@ -211,10 +212,15 @@ def test_select_digest_respects_quotas_and_relevance_floor():
 def test_compose_renders_sections_and_degraded_banner():
     c = cand(0, title="A <b>title</b>", rank=1)
     c.section, c.position, c.summary, c.why_it_matters = "core", 1, "Sum.", "Why."
-    ctx = compose.build_context([c], digest_date=date(2026, 10, 17), run_id="r1", degraded=True)
+    c.headline, c.example, c.best_topic = "Plain headline", "Imagine a shop.", "rag-retrieval"
+    ctx = compose.build_context(
+        [c], digest_date=date(2026, 10, 17), run_id="r1", degraded=True,
+        topic_labels={"rag-retrieval": "AI that looks things up (RAG)"},
+    )
     html, text = compose.render(ctx)
-    assert "Top picks" in html and "degraded mode" in html and "&lt;b&gt;" in html
-    assert "Why it matters: Why." in text
+    assert "Top picks for you" in html and "unavailable" in html and "Original title: A &lt;b&gt;title&lt;/b&gt;" in html
+    assert "Plain headline" in html and "Imagine a shop." in html and "AI that looks things up" in html
+    assert "Why it matters: Why." in text and "Imagine a shop." in text
 
 
 # ---- collect isolation -------------------------------------------------------------------

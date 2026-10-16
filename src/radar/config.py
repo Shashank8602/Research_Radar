@@ -67,6 +67,7 @@ class TopicSources(BaseModel):
 
 class Topic(BaseModel):
     name: str
+    label: str = ""  # friendly name shown in the email
     weight: float = 1.0
     description: str
     anchors: list[str] = Field(default_factory=list)

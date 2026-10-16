@@ -43,12 +43,13 @@ def _persist_scores(conn, run_id: str, cands: list[Candidate], judge_model: str)
     for c in cands:
         conn.execute(
             "insert into item_scores (item_id, run_id, best_topic, relevance, novelty, "
-            "actionability, rationale, summary, why_it_matters, filter_score, filter_parts, "
-            "final_rank, judge_model) "
-            "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) on conflict do nothing",
+            "actionability, rationale, summary, why_it_matters, headline, example, filter_score, "
+            "filter_parts, final_rank, judge_model) "
+            "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) on conflict do nothing",
             (
                 c.id, run_id, c.best_topic or c.nearest_topic, c.relevance, c.novelty,
-                c.actionability, c.rationale, c.summary, c.why_it_matters, c.filter_score,
+                c.actionability, c.rationale, c.summary, c.why_it_matters, c.headline, c.example,
+                c.filter_score,
                 Jsonb(c.filter_parts), c.final_rank, judge_model if c.judged else None,
             ),
         )
@@ -193,7 +194,10 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
 
     # 6. compose + send
     with tracing.stage_span("compose-digest", input={"items": len(chosen), "degraded": degraded}) as span:
-        ctx = compose.build_context(chosen, digest_date=digest_date, run_id=run_id, degraded=degraded)
+        ctx = compose.build_context(
+            chosen, digest_date=digest_date, run_id=run_id, degraded=degraded,
+            topic_labels={t.name: t.label or t.name for t in config.topics},
+        )
         html, text = compose.render(ctx)
         span.update(output={"items": len(chosen), "html_chars": len(html)})
     summary.n_sent = len(chosen)

@@ -2,28 +2,40 @@
 <html>
 <body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#1c1e21;">
 <div style="max-width:640px;margin:0 auto;padding:16px;">
-  <div style="padding:8px 4px 16px;">
+  <div style="padding:8px 4px 6px;">
     <div style="font-size:22px;font-weight:700;">Research Radar</div>
-    <div style="font-size:13px;color:#65676b;">{{ date }} · {{ items|length }} items{% if degraded %} · degraded mode{% endif %}</div>
+    <div style="font-size:13px;color:#65676b;">{{ date }} &middot; {{ items|length }} things worth knowing today</div>
+  </div>
+  <div style="font-size:13px;color:#4b4f56;line-height:1.5;padding:0 4px 8px;">
+    Each item says what it is in plain words, gives a quick &ldquo;imagine this&rdquo; example, and tells you why it matters.
+    Tap a headline to read the original.
   </div>
   {% if degraded %}
-  <div style="background:#fff4e5;border:1px solid #ffd8a8;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;">
-    The LLM judge was unavailable for some items, so they are ranked by topic match only and marked as unscored.
+  <div style="background:#fff4e5;border:1px solid #ffd8a8;border-radius:8px;padding:10px 12px;font-size:13px;margin:8px 0;">
+    The AI summarizer was unavailable for some items, so those show the original technical text instead of a plain-English version.
   </div>
   {% endif %}
   {% for section in sections %}
-  <div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#65676b;margin:20px 4px 8px;">{{ section.title }}</div>
+  <div style="font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#65676b;margin:22px 4px 8px;">{{ section.title }}</div>
   {% for it in section.entries %}
-  <div style="background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid #e4e6eb;">
-    <div style="font-size:16px;font-weight:600;line-height:1.3;"><a href="{{ it.url }}" style="color:#0b57d0;text-decoration:none;">{{ it.title }}</a></div>
-    <div style="font-size:12px;color:#65676b;margin:4px 0 8px;">{{ it.source }}{% if it.best_topic %} · {{ it.best_topic }}{% endif %}{% if it.scores %} · {{ it.scores }}{% endif %}</div>
-    <div style="font-size:14px;line-height:1.5;">{{ it.summary }}</div>
-    <div style="font-size:14px;line-height:1.5;margin-top:6px;"><strong>Why it matters:</strong> {{ it.why_it_matters }}</div>
+  <div style="background:#fff;border-radius:10px;padding:16px 18px;margin-bottom:12px;border:1px solid #e4e6eb;">
+    <div style="font-size:12px;color:#65676b;margin-bottom:6px;">{{ it.kind }}{% if it.topic %} &middot; {{ it.topic }}{% endif %}</div>
+    <div style="font-size:18px;font-weight:700;line-height:1.3;"><a href="{{ it.url }}" style="color:#0b57d0;text-decoration:none;">{{ it.headline }}</a></div>
+    <div style="font-size:15px;line-height:1.55;margin-top:8px;">{{ it.summary }}</div>
+    {% if it.example %}
+    <div style="background:#eef4ff;border-left:4px solid #0b57d0;border-radius:4px;padding:10px 12px;margin-top:10px;font-size:14px;line-height:1.55;">
+      <strong>Example:</strong> {{ it.example }}
+    </div>
+    {% endif %}
+    <div style="font-size:15px;line-height:1.55;margin-top:10px;"><strong>Why it matters:</strong> {{ it.why_it_matters }}</div>
+    {% if it.original_title %}
+    <div style="font-size:11px;color:#8a8d91;margin-top:10px;">Original title: {{ it.original_title }}</div>
+    {% endif %}
     {% if it.links %}
     <div style="font-size:13px;margin-top:10px;">
-      <a href="{{ it.links.up }}" style="text-decoration:none;margin-right:12px;">👍</a>
-      <a href="{{ it.links.down }}" style="text-decoration:none;margin-right:12px;">👎</a>
-      <a href="{{ it.links.deepdive }}" style="color:#0b57d0;text-decoration:none;">Deep dive</a>
+      <a href="{{ it.links.up }}" style="text-decoration:none;margin-right:12px;">&#128077;</a>
+      <a href="{{ it.links.down }}" style="text-decoration:none;margin-right:12px;">&#128078;</a>
+      <a href="{{ it.links.deepdive }}" style="color:#0b57d0;text-decoration:none;">Explain more</a>
     </div>
     {% endif %}
   </div>

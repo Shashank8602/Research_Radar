@@ -44,7 +44,9 @@ class Candidate(BaseModel):
     novelty: float | None = None
     actionability: float | None = None
     rationale: str = ""
+    headline: str = ""
     summary: str = ""
+    example: str = ""
     why_it_matters: str = ""
     judged: bool = False
     final_rank: float = 0.0
@@ -63,7 +65,9 @@ class JudgeItem(BaseModel):
     novelty: float = Field(ge=0, le=10)
     actionability: float = Field(ge=0, le=10)
     rationale: str
+    headline: str
     summary: str
+    example: str
     why_it_matters: str
 
 

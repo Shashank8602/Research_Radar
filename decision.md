@@ -35,6 +35,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-027 | 1 | Dry-run semantics and run statuses | Accepted |
 | D-028 | 1 | Scheduled workflow: 07:00 IST, serialized, cached model | Accepted |
 | D-029 | 1 | Lint: ignore E501; dev console uses st.iframe | Accepted |
+| D-030 | 1 | Digest written in plain language with a scenario example | Accepted |
 
 ---
 
@@ -216,3 +217,11 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 
 ### D-029: Lint ignores E501; dev console uses st.iframe
 - **Decision:** Ruff ignores E501 (long prompt and SQL strings; 100 columns stays advisory). The digest preview uses `st.iframe` (the old `components.html` is deprecated); the template autoescapes all item text, which is acceptable for a local-only tool.
+
+### D-030: Digest written in plain language with a scenario example
+- **Problem:** The first real digest was too technical to understand without asking another AI (jargon like "indirect prompt injection", "benchmark", "agentic", scores such as "rel 8 · new 7 · act 6").
+- **Decision:** The target reader is a curious non-expert. The judge now writes four reader-facing fields per item: `headline` (plain-English rewrite of the title, max 14 words), `summary` (2 short sentences, only facts from the title/snippet), `example` (an "Imagine..." scenario in an everyday setting such as a bank, shop or help desk, explicitly an illustration) and `why_it_matters` (one plain sentence). The prompt carries a jargon-to-plain-words glossary, a banned-words list and one worked before/after example. The email shows a friendly source label ("Research paper", "New tool release") and topic label (`label` in `topics.yaml`), drops the numeric scores, and keeps the original title in small grey text. A one-line "how to read this" intro was added. Migration `0003` stores `headline` and `example`.
+- **Why:** A digest that needs a second tool to decode defeats its purpose. A concrete scenario is the fastest way to make an abstract idea land, and showing the original title keeps the source traceable.
+- **Guardrail:** Examples must start with "Imagine" and must not state results, numbers or abilities absent from the snippet, so the plain version stays honest.
+- **Known limit:** Some terms still slip through ("reinforcement learning", "training-free", method names). Tightening is cheap via the glossary in `judge.py`. A later eval can score "understandable without help" with an LLM judge or by asking the reader.
+- **Rejected:** Adding a separate glossary section to the email (more to read); keeping scores in the email (meaningless to a newcomer); two versions of each digest, simple and technical (double the tokens, split attention).

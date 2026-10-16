@@ -1,0 +1,48 @@
+# Behavior lives here, not in code. See research-radar.md section 5.
+models:                       # pinned, never "latest"; verify these IDs are current (open item)
+  judge: groq/openai/gpt-oss-120b
+  fallbacks:
+    - gemini/gemini-2.5-flash-lite
+    - openrouter/nvidia/nemotron-3-super-120b-a12b:free
+
+digest:
+  sections:
+    core:        { max_items: 5 }
+    watchlist:   { max_items: 2 }
+    exploration: { max_items: 1 }
+
+topics:
+  - name: agentic-systems
+    weight: 1.0
+    description: >
+      Designing, orchestrating and making reliable LLM agents: multi-agent patterns,
+      planning, tool use, handoffs, and protocols like MCP and A2A.
+    anchors: []               # 5-10 seed URLs, to be added
+    keywords: [agent, multi-agent, tool use, MCP, A2A, handoff]
+    sources:
+      arxiv: [cs.AI, cs.CL]
+      hn_queries: ["agent", "MCP"]
+
+  - name: rag-retrieval
+    weight: 1.0
+    description: >
+      Retrieval-augmented generation techniques: hybrid search, rerankers, GraphRAG,
+      contextual retrieval, chunking strategies and multimodal retrieval.
+    anchors: []
+    keywords: [RAG, retrieval, reranker, GraphRAG, chunking, hybrid search]
+    sources:
+      arxiv: [cs.IR, cs.CL]
+      hn_queries: ["RAG", "reranker"]
+
+  # TODO: llmops-evals, memory-context, agent-security, enterprise-genai
+
+global_sources:
+  hf_daily_papers: true
+  rss:
+    - { name: Simon Willison, feed: "https://simonwillison.net/atom/everything/" }
+
+watchlist:
+  - { name: LangGraph, feed: "https://github.com/langchain-ai/langgraph/releases.atom" }
+  - { name: LiteLLM,   feed: "https://github.com/BerriAI/litellm/releases.atom" }
+  - { name: Langfuse,  feed: "https://github.com/langfuse/langfuse/releases.atom" }
+  - { name: Mem0,      feed: "https://github.com/mem0ai/mem0/releases.atom" }

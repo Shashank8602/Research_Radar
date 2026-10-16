@@ -7,3 +7,4 @@ __pycache__/
 .streamlit/secrets.toml
 CLAUDE.local.md
 .claude/settings.local.json
+evals/candidate_pool/*.jsonl

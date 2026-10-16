@@ -1,0 +1,46 @@
+name: daily-digest
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # 07:00 IST. GitHub may fire this late; the runs-table lock makes that harmless.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no lock, no email)"
+        type: boolean
+        default: false
+
+# Never run two digests at once.
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      APP_ENV: production
+      APP_RELEASE: ${{ github.sha }}
+      FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.cache/fastembed
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: .cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+      - run: uv sync --no-dev
+      - name: Run pipeline
+        run: uv run radar-run ${{ inputs.dry_run && '--dry-run' || '' }}

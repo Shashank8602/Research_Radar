@@ -16,7 +16,7 @@ If code and docs disagree, fix the docs in the same change.
 
 ## Current status
 
-Phase 0 (foundations) is done. Phase 1 (digest MVP) is in progress. See [flow.md](flow.md) for the stage-by-stage status table.
+Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Next: Phase 2 (feedback + evals). See [flow.md](flow.md) for the stage-by-stage status table.
 
 ## Commands
 
@@ -25,8 +25,11 @@ Run `uv` as `python -m uv` on this machine (it was installed via `pip --user`, s
 ```bash
 python -m uv sync --all-groups          # install everything (dev + devui)
 python -m uv run pytest -q              # tests (no network, no real keys needed)
-python -m uv run ruff check . --fix     # lint (line length 100)
+python -m uv run ruff check . --fix     # lint (E501 ignored; keep lines ~100)
 python -m uv run radar-smoke            # end-to-end check: DB + LLM + email + Langfuse trace
+python -m uv run radar-run --dry-run --top-n 10   # full pipeline, no lock/email (cheap)
+python -m uv run radar-run --dry-run --email      # ...and email me the digest
+python -m uv run radar-run              # REAL run: takes today's lock and emails (normally CI does this)
 python -m uv run radar-smoke --no-db --no-email   # partial runs while debugging
 python -m uv run streamlit run devui/app.py       # temporary dev console (local only)
 ```
@@ -44,6 +47,8 @@ evals/            golden set + candidate pools (Phase 2)
 tests/            pytest, no network
 .claude/skills/langfuse/   Langfuse skill (docs-first workflow for tracing/evals)
 ```
+
+Pipeline modules: `collect/`, `dedupe.py`, `embed.py`, `filter.py`, `judge.py`, `diversify.py`, `compose.py` (+ `templates/`), `pipeline.py`. Workflows: `ci.yml`, `daily-digest.yml`.
 
 Planned (not built yet): `agent/` (LangGraph deep dive), `worker/` (Cloudflare Worker, JS), `dashboard/`.
 

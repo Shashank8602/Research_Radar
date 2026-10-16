@@ -27,6 +27,8 @@ flowchart TD
     G --> M
 ```
 
+Typical numbers from a live run: ~410 collected → ~395 unique → ~393 fresh → 33 judged → 8 in the digest (5 core, 2 watchlist, 1 exploration).
+
 Rules that always hold:
 - The run row is created first and is the lock. A retry or late duplicate cron cannot send a second digest (partial unique index on non-dry runs).
 - A failed source or exhausted LLM chain degrades the digest instead of cancelling it.
@@ -42,14 +44,14 @@ Rules that always hold:
 | LLM router + structured output | `llm.py` | ✅ |
 | Tracing | `tracing.py` | ✅ |
 | Email adapter | `deliver/email.py` | ✅ |
-| Collect | `collect/` | 🔨 |
-| Dedupe + embed | `dedupe.py`, `embed.py` | ⬜ |
-| Cheap filter | `filter.py` | ⬜ |
-| Judge | `judge.py` | ⬜ |
-| Diversify | `diversify.py` | ⬜ |
-| Compose | `compose.py` | ⬜ |
-| Orchestrator | `pipeline.py` | ⬜ |
-| Scheduled workflow | `.github/workflows/daily-digest.yml` | ⬜ |
+| Collect | `collect/` | ✅ |
+| Dedupe + embed | `dedupe.py`, `embed.py` | ✅ |
+| Cheap filter | `filter.py` | ✅ |
+| Judge | `judge.py` | ✅ |
+| Diversify | `diversify.py` | ✅ |
+| Compose | `compose.py` | ✅ |
+| Orchestrator | `pipeline.py` | ✅ |
+| Scheduled workflow | `.github/workflows/daily-digest.yml` | ✅ |
 
 ---
 
@@ -141,7 +143,7 @@ flowchart TD
     R --> C6[send-email]
 ```
 
-Verified today for the smoke test (`call-llm` → `smoke-greeting` generation). Stage names above are the planned stable names; keep them stable because dashboards and evaluators will depend on them.
+Audited against a real run: root `radar-digest-run` → `collect-sources`, `dedupe-items`, `filter-candidates`, `judge-items` (→ one `judge-batch` generation per batch, with model and token usage), `diversify-items`, `compose-digest`, `send-email`. Keep these names stable; dashboards and evaluators will depend on them.
 
 ---
 
@@ -169,7 +171,7 @@ Environments:
 | Phase | Outcome | Status |
 |---|---|---|
 | 0 Foundations | LLM, DB, email, tracing, CI, secrets, dev console shell | ✅ |
-| 1 Digest MVP | Daily email, labeling started | 🔨 |
+| 1 Digest MVP | Daily email, labeling started | 🔨 pipeline, workflow, dev console done; 5 unattended mornings pending |
 | 2 Feedback + evals | Votes flow back, precision@5 table | ⬜ |
 | 3 Deep dive | Cited, follow-up-capable chat per item | ⬜ |
 | 4 Polish | Watchlist, dashboard, README, dev console removed | ⬜ |

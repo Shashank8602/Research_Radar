@@ -18,7 +18,7 @@ import functools
 import os
 import re
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from typing import Any, TypeVar
 
 from radar.config import Env, get_env
@@ -109,11 +109,17 @@ def run_trace(run_id: str | None, digest_date: str, dry_run: bool) -> Iterator[s
                 raise
 
 
+class _NoopSpan:
+    def update(self, **_: Any) -> None:
+        pass
+
+
 @contextmanager
 def stage_span(name: str, *, input: Any = None, as_type: str = "span") -> Iterator[Any]:
-    """Nested span for a pipeline stage. Call `.update(output=...)` on the yielded object."""
+    """Nested span for a pipeline stage. Call `.update(output=...)` on the yielded object
+    (a no-op object when tracing is disabled)."""
     if not _enabled:
-        yield nullcontext()
+        yield _NoopSpan()
         return
     with _client().start_as_current_observation(as_type=as_type, name=name, input=input) as span:
         try:

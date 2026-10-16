@@ -1,9 +1,28 @@
 # Behavior lives here, not in code. See research-radar.md section 5.
-models:                       # pinned, never "latest"; verify these IDs are current (open item)
+models:                       # pinned, never "latest"; verified against provider lists
+  embedding: BAAI/bge-small-en-v1.5   # 384-dim, CPU via FastEmbed
   judge: groq/openai/gpt-oss-120b
   fallbacks:
     - gemini/gemini-2.5-flash-lite
     - openrouter/nvidia/nemotron-3-super-120b-a12b:free
+
+filter:
+  top_n: 30
+  recency_halflife_days: 3.0
+  max_age_days: 14
+  watchlist_window_days: 7
+  weights: { cosine: 0.55, keyword: 0.20, recency: 0.15, popularity: 0.10, feedback: 0.0 }
+
+dedupe:
+  similarity_threshold: 0.92
+  resend_window_days: 14
+
+judge:
+  batch_size: 6
+  min_relevance: 4.0
+
+diversify:
+  mmr_lambda: 0.7
 
 digest:
   sections:
@@ -34,7 +53,49 @@ topics:
       arxiv: [cs.IR, cs.CL]
       hn_queries: ["RAG", "reranker"]
 
-  # TODO: llmops-evals, memory-context, agent-security, enterprise-genai
+  - name: llmops-evals
+    weight: 1.0
+    description: >
+      Evaluating, monitoring and operating LLM applications: LLM-as-judge, eval frameworks
+      and benchmarks, tracing and observability, cost and latency optimization, prompt caching.
+    anchors: []
+    keywords: [LLM-as-judge, evaluation, benchmark, observability, tracing, prompt caching, latency, cost]
+    sources:
+      arxiv: [cs.CL, cs.AI]
+      hn_queries: ["LLM eval", "observability LLM"]
+
+  - name: memory-context
+    weight: 1.0
+    description: >
+      How agents store, retrieve and compress state across sessions: long-term memory,
+      context engineering, compaction, summarization of history, and memory benchmarks.
+    anchors: []
+    keywords: [agent memory, long-term memory, context engineering, context window, compaction, memory benchmark]
+    sources:
+      arxiv: [cs.CL, cs.AI]
+      hn_queries: ["agent memory", "context engineering"]
+
+  - name: agent-security
+    weight: 1.0
+    description: >
+      Securing LLM agents: prompt injection and jailbreak defenses, tool-permission design,
+      sandboxing, guardrail frameworks and red-teaming of agentic systems.
+    anchors: []
+    keywords: [prompt injection, jailbreak, guardrail, sandbox, red teaming, tool permission, agent security]
+    sources:
+      arxiv: [cs.CR, cs.AI, cs.CL]
+      hn_queries: ["prompt injection", "agent security"]
+
+  - name: enterprise-genai
+    weight: 1.0
+    description: >
+      Case studies, architecture write-ups and lessons from teams shipping RAG and agents to
+      production at scale: reliability, cost, deployment, and organizational lessons.
+    anchors: []
+    keywords: [in production, case study, lessons learned, at scale, deployment, enterprise]
+    sources:
+      arxiv: []
+      hn_queries: ["LLM in production", "lessons learned LLM"]
 
 global_sources:
   hf_daily_papers: true

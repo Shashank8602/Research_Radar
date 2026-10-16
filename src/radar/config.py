@@ -48,6 +48,7 @@ class Env(BaseSettings):
 class ModelsConfig(BaseModel):
     judge: str
     fallbacks: list[str] = Field(default_factory=list)
+    embedding: str = "BAAI/bge-small-en-v1.5"  # 384-dim; must match items.embedding
 
 
 class SectionConfig(BaseModel):
@@ -88,8 +89,46 @@ class WatchlistEntry(BaseModel):
     feed: str
 
 
+class FilterWeights(BaseModel):
+    cosine: float = 0.55
+    keyword: float = 0.20
+    recency: float = 0.15
+    popularity: float = 0.10
+    feedback: float = 0.0  # off until the ablation shows it helps (Phase 2)
+
+
+class FilterConfig(BaseModel):
+    top_n: int = 30
+    recency_halflife_days: float = 3.0
+    max_age_days: int = 14
+    watchlist_window_days: int = 7
+    weights: FilterWeights = Field(default_factory=FilterWeights)
+
+
+class DedupeConfig(BaseModel):
+    similarity_threshold: float = 0.92
+    resend_window_days: int = 14
+
+
+class JudgeConfig(BaseModel):
+    batch_size: int = 6
+    snippet_chars: int = 700
+    w_relevance: float = 0.6
+    w_novelty: float = 0.2
+    w_actionability: float = 0.2
+    min_relevance: float = 4.0  # items judged below this are not eligible for the digest
+
+
+class DiversifyConfig(BaseModel):
+    mmr_lambda: float = 0.7
+
+
 class AppConfig(BaseModel):
     models: ModelsConfig
+    filter: FilterConfig = Field(default_factory=FilterConfig)
+    dedupe: DedupeConfig = Field(default_factory=DedupeConfig)
+    judge: JudgeConfig = Field(default_factory=JudgeConfig)
+    diversify: DiversifyConfig = Field(default_factory=DiversifyConfig)
     digest: DigestConfig
     topics: list[Topic]
     global_sources: GlobalSources = Field(default_factory=GlobalSources)

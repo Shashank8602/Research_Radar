@@ -85,6 +85,8 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 
 **Risks:** Groq per-minute/day token caps, so size judge batches and add backoff. Late cron fires are harmless because of the `runs` lock. arXiv volume, so prefilter early.
 
+**Status (2026-10-17):** 1A-1E and 1G built and verified on live data; workflow written. Remaining: GitHub-run verification, 5 unattended mornings, labeling. Deviations are recorded in decision.md (D-018 to D-029).
+
 **Done when:** 5 consecutive mornings produce a digest with no manual steps, a re-triggered run the same day does not send a second email, and a deliberately broken source does not stop the digest.
 
 ---

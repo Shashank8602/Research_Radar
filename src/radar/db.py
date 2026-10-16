@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 import psycopg
+from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
 
 from radar.config import ROOT, get_env
@@ -20,7 +21,16 @@ def connect() -> Iterator[psycopg.Connection]:
     env = get_env()
     env.require("database_url")
     with psycopg.connect(env.database_url, row_factory=dict_row) as conn:
+        register_vector_types(conn)
         yield conn
+
+
+def register_vector_types(conn: psycopg.Connection) -> None:
+    """Teach psycopg about pgvector. No-op before the extension exists (first migration)."""
+    try:
+        register_vector(conn)
+    except psycopg.ProgrammingError:
+        conn.rollback()
 
 
 def migrate(conn: psycopg.Connection, directory: Path = MIGRATIONS_DIR) -> list[str]:
@@ -38,6 +48,8 @@ def migrate(conn: psycopg.Connection, directory: Path = MIGRATIONS_DIR) -> list[
         conn.execute("insert into schema_migrations (name) values (%s)", (path.name,))
         applied.append(path.name)
     conn.commit()
+    if applied:
+        register_vector_types(conn)
     return applied
 
 

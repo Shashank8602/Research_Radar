@@ -16,4 +16,4 @@ except Exception as e:
 if df.empty:
     st.info("No runs yet. Run `uv run radar-smoke`.")
 else:
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)

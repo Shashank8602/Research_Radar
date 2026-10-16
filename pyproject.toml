@@ -13,6 +13,10 @@ dependencies = [
     "pydantic-settings>=2.4",
     "pgvector>=0.3",
     "pyyaml>=6.0",
+    "fastembed>=0.9.0",
+    "feedparser>=6.0.14",
+    "jinja2>=3.1.6",
+    "numpy>=2.4.6",
 ]
 
 [dependency-groups]
@@ -28,6 +32,7 @@ devui = [
 
 [project.scripts]
 radar-smoke = "radar.smoke:main"
+radar-run = "radar.pipeline:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -42,6 +47,7 @@ src = ["src", "tests", "devui"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # long prompt/SQL strings; line length is advisory
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

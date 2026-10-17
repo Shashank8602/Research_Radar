@@ -33,7 +33,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-025 | 1 | Exploration slot = good item far from the usual profile | Accepted |
 | D-026 | 1 | DB is the source of truth for scores and generated text | Accepted |
 | D-027 | 1 | Dry-run semantics and run statuses | Accepted |
-| D-028 | 1 | Scheduled workflow: 07:00 IST, serialized, cached model | Accepted (moved to 09:00 IST) |
+| D-028 | 1 | Scheduled workflow: 22:00 UTC (03:30 IST), serialized, cached model | Accepted (moved twice) |
 | D-029 | 1 | Lint: ignore E501; dev console uses st.iframe | Accepted |
 | D-030 | 1 | Digest written in plain language with a scenario example | Accepted |
 | D-031 | 2 | Feedback: signed links to a Worker, writes via one locked-down database function | Accepted |
@@ -225,9 +225,9 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Why:** Safe iteration without burning the day's slot or re-sending, and a real scheduled run is never blocked by experiments.
 - **Verified:** a second real run for the same date is refused by the partial unique index; dry runs are allowed.
 
-### D-028: Scheduled workflow: 07:00 IST, serialized, cached model
-- **Decision:** `daily-digest.yml` runs at 01:30 UTC (changed to 03:30 UTC = 09:00 IST at the user's request, 2026-10-17), supports manual dispatch with a dry-run toggle, uses a `concurrency` group so two digests never run at once, and caches the FastEmbed model. `APP_ENV=production` and `APP_RELEASE=<sha>` tag the Langfuse traces.
-- **Why:** Morning delivery in IST; late or duplicate fires are harmless because of the run lock.
+### D-028: Scheduled workflow: 22:00 UTC (03:30 IST), serialized, cached model
+- **Decision:** `daily-digest.yml` runs at 22:00 UTC = 03:30 IST (originally 01:30 UTC; moved to 03:30 UTC on 2026-10-17, then to 22:00 UTC the same day because GitHub started the 03:30 UTC run 4.5 h late and the email arrived at 13:31 IST), supports manual dispatch with a dry-run toggle, uses a `concurrency` group so two digests never run at once, and caches the FastEmbed model. `APP_ENV=production` and `APP_RELEASE=<sha>` tag the Langfuse traces.
+- **Why:** Morning delivery in IST with a buffer for GitHub's scheduler delays (the free tier gives no start-time guarantee; an exact option is a Cloudflare Worker calling `workflow_dispatch`, planned for Phase 3). `digest_date` is the UTC date of the run, so one run per day still holds. Late or duplicate fires are harmless because of the run lock.
 
 ### D-029: Lint ignores E501; dev console uses st.iframe
 - **Decision:** Ruff ignores E501 (long prompt and SQL strings; 100 columns stays advisory). The digest preview uses `st.iframe` (the old `components.html` is deprecated); the template autoescapes all item text, which is acceptable for a local-only tool.

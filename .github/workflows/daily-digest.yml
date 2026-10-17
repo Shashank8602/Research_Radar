@@ -2,7 +2,7 @@ name: daily-digest
 
 on:
   schedule:
-    - cron: "30 3 * * *" # 09:00 IST. GitHub may fire this late; the runs-table lock makes that harmless.
+    - cron: "0 22 * * *" # 03:30 IST. GitHub fires scheduled runs hours late at times (4.5h on 2026-10-17); the early slot lands the email by morning. The runs-table lock makes late or duplicate fires harmless.
   workflow_dispatch:
     inputs:
       dry_run:

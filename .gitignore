@@ -10,3 +10,6 @@ CLAUDE.local.md
 evals/candidate_pool/*.jsonl
 worker/.wrangler/
 worker/node_modules/
+
+# Third-party agent skill (Langfuse); installed locally, not redistributed
+.claude/skills/langfuse/

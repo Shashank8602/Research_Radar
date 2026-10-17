@@ -1,0 +1,28 @@
+name: keepalive
+
+# GitHub disables scheduled workflows in a PUBLIC repository after 60 days without repository
+# activity. That would stop the daily digest (and the alarm that watches it) without any error.
+# Once a month this job re-enables every scheduled workflow, itself included, through the API.
+# Best effort: it keeps the timer reset without adding commits. If a workflow ever shows as
+# disabled in the Actions tab, enable it there (or run this one by hand).
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Re-enable the scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for wf in daily-digest.yml check-digest.yml evals.yml keepalive.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable" \
+              && echo "enabled $wf" || echo "could not enable $wf"
+          done

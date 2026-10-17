@@ -51,6 +51,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-060 | 4 | Public-readiness: history audit, email removed from history, third-party skill untracked, keep-alive for scheduled workflows | Accepted |
 | D-059 | 4 | Dev console replaced by a dashboard; reads are enforced read-only (and a probe once wrote a row) | Accepted |
 | D-058 | 4 | Digests are dated in the reader's timezone (IST), not the runner's UTC day | Accepted |
 | D-057 | 4 | Missed-digest alarm: a second workflow checks for a real, sent digest and emails an alert | Accepted |
@@ -571,3 +572,18 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   replaced; the new check refuses the insert with `ReadOnlySqlTransaction`. Lesson (now in CLAUDE.md): probe "must not
   write" with a statement that matches no rows.
 - **Not done:** deploying the dashboard (a second Community Cloud app needing the owner's secrets); optional.
+
+### D-060: Making the repository public safely
+- **Audit (all commits):** no API keys, tokens or database URLs in any diff (regexes for every provider in use); `.env` and key
+  files never tracked; the only infrastructure identifier was one real Worker URL in `flow.md` (now a placeholder).
+- **Personal data:** the owner's Gmail address was in every commit's author/committer metadata (not in any file or message).
+  **Decision:** rewrite all commits to GitHub's no-reply address (`131436859+Shashank8602@users.noreply.github.com`). Done
+  with a local backup bundle first and a byte-for-byte tree comparison afterwards. Residual risk: GitHub can keep
+  unreferenced old commits reachable by their exact hash until it garbage-collects; the email is not secret-grade, so accepted.
+- **Third-party content:** `.claude/skills/langfuse/` is Langfuse's own agent skill, with no license or attribution in the repo.
+  It is untracked and git-ignored (the local copy stays) instead of being republished.
+- **License:** none, by the owner's choice (all rights reserved).
+- **Scheduled workflows:** GitHub disables them in public repos after 60 days without activity, which would stop the digest and
+  its alarm silently. `keepalive.yml` re-enables them monthly through the API (best effort, not verifiable in advance).
+- **Actions hygiene:** default workflow permission is read-only; workflow runs from outside contributors require approval.
+  Logs mask secret values (`[send] emailed ***`).

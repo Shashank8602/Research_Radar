@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+from pathlib import Path
 
 import httpx
 import numpy as np
@@ -353,3 +354,54 @@ def test_history_is_replayed_after_a_restart_but_never_duplicated():
     assert "Saved question?" in prompts[0] and "Saved reply." in prompts[0]
     ask(g, "item-1", "Another?", history=history_from_chat(saved))  # now it has its own memory
     assert prompts[1].count("Saved reply.") == 1
+
+
+# --- the page rejects bad links ---------------------------------------------------------------
+
+
+@pytest.fixture
+def prod_app(monkeypatch):
+    """The Streamlit page in production mode with a known signing secret and no database."""
+    from types import SimpleNamespace
+
+    from streamlit.testing.v1 import AppTest
+
+    fake_env = SimpleNamespace(feedback_signing_secret="test-secret", app_env="production",
+                               require=lambda *names: None)
+    monkeypatch.setattr("radar.config.get_env", lambda: fake_env)
+    path = str(Path(__file__).resolve().parents[1] / "agent" / "app.py")
+
+    def open_link(token: str | None = None, **params):
+        at = AppTest.from_file(path, default_timeout=30)
+        if token is not None:
+            at.query_params["t"] = token
+        for k, v in params.items():
+            at.query_params[k] = v
+        return at.run()
+
+    return open_link
+
+
+def _signed(action: str, ttl_days: float = 7):
+    from radar import feedback
+
+    token, _, _ = feedback.mint("95ae43bc-f494-492a-a37c-b43e96ce1dd8", "run-1", action, "test-secret",
+                                ttl_days=ttl_days)
+    return token
+
+
+def test_page_rejects_expired_tampered_and_wrong_purpose_links(prod_app):
+    for bad in (_signed("deepdive", ttl_days=-1),          # expired
+                _signed("deepdive") + "x",                 # tampered signature
+                _signed("up"),                             # a vote link must not open a deep dive
+                "not-a-token"):
+        at = prod_app(bad)
+        assert not at.exception
+        assert any("invalid or has expired" in e.value for e in at.error), bad[:20]
+        assert not at.chat_message and not at.title  # nothing was loaded or asked
+
+
+def test_page_without_a_link_asks_for_one_and_ignores_the_dev_shortcut(prod_app):
+    at = prod_app(item="95ae43bc-f494-492a-a37c-b43e96ce1dd8")  # ?item= works only in development
+    assert not at.exception and not at.chat_message and not at.title
+    assert any("Deep dive link from your digest email" in i.value for i in at.info)

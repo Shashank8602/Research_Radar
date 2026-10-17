@@ -9,6 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync
+      - run: uv sync --all-groups   # includes Streamlit, needed by the deep-dive page tests
       - run: uv run ruff check .
       - run: uv run pytest
+      - run: node --test worker/test/handler.test.mjs   # the vote Worker, with a fake database

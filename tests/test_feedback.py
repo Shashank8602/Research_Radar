@@ -43,3 +43,23 @@ def test_python_token_verifies_in_worker_js():
     assert out.returncode == 0, out.stderr
     good_claims, bad_claims = out.stdout.strip().splitlines()
     assert f'"n":"{nonce}"' in good_claims.replace(" ", "") and bad_claims == "null"
+
+
+def test_deepdive_link_is_signed_reusable_and_scoped():
+    link = feedback.deepdive_link("item-1", "run-1", base_url="https://app.test/", secret="s3cret")
+    assert link.startswith("https://app.test/?t=")
+    claims = feedback.verify(link.split("?t=")[1], "s3cret")
+    assert claims["a"] == "deepdive" and claims["i"] == "item-1" and claims["r"] == "run-1"
+    assert feedback.verify(link.split("?t=")[1], "other-secret") is None
+
+
+def test_deepdive_link_lasts_a_week_votes_longer():
+    import time
+
+    now = time.time()
+    link = feedback.deepdive_link("i", "r", base_url="https://app.test", secret="s")
+    token = link.split("?t=")[1]
+    assert feedback.verify(token, "s", now=now + 6 * 86400) is not None
+    assert feedback.verify(token, "s", now=now + 8 * 86400) is None
+    vote, _, _ = feedback.mint("i", "r", "up", "s")
+    assert feedback.verify(vote, "s", now=now + 20 * 86400) is not None

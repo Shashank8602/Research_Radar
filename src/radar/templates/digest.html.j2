@@ -33,9 +33,10 @@
     {% endif %}
     {% if it.links %}
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eef0f3;">
-      <a href="{{ it.links.up }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #0b57d0;border-radius:999px;background:#0b57d0;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">More like this</a>
-      <a href="{{ it.links.down }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Less like this</a>
-      <a href="{{ it.links.save }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Save for later</a>
+      {% if it.links.deepdive %}<a href="{{ it.links.deepdive }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #0b57d0;border-radius:999px;background:#ffffff;color:#0b57d0;font-size:13px;font-weight:600;text-decoration:none;">Explain in depth</a>{% endif %}
+      {% if it.links.up %}<a href="{{ it.links.up }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #0b57d0;border-radius:999px;background:#0b57d0;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">More like this</a>{% endif %}
+      {% if it.links.down %}<a href="{{ it.links.down }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Less like this</a>{% endif %}
+      {% if it.links.save %}<a href="{{ it.links.save }}" style="display:inline-block;margin:0 6px 6px 0;padding:7px 14px;border:1px solid #c4c7cc;border-radius:999px;background:#ffffff;color:#4b4f56;font-size:13px;font-weight:600;text-decoration:none;">Save for later</a>{% endif %}
     </div>
     {% endif %}
   </div>
@@ -44,6 +45,7 @@
   {% if not sections %}
   <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid #e4e6eb;">Nothing cleared the bar today.</div>
   {% endif %}
+  {% if has_deepdive %}<div style="font-size:12px;color:#8a8d91;text-align:center;margin-top:16px;">"Explain in depth" may take about 30 seconds to open the first time.</div>{% endif %}
   <div style="font-size:11px;color:#8a8d91;text-align:center;margin-top:20px;">Run {{ run_id }}</div>
 </div>
 </body>

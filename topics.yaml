@@ -24,6 +24,7 @@ judge:
 diversify:
   mmr_lambda: 0.6          # lower = more variety in the top picks
   max_per_topic: 2         # at most 2 top picks from the same topic
+  max_per_source: { github: 2 }   # new repos are recent and starred, so they would crowd out papers
 
 personalize:               # vote-based ranking; off (0) until the evals show it helps (D-038)
   k: 5
@@ -69,6 +70,8 @@ topics:
     sources:
       arxiv: [cs.AI, cs.CL]
       hn_queries: ["agent", "MCP"]
+      github_queries: ["agent skills", "MCP server", "AI agent framework", "claude code", "coding agent",
+                       "multi-agent", "browser agent", "topic:claude-code", "topic:mcp", "topic:ai-agents"]
 
   - name: rag-retrieval
     label: AI that looks things up (RAG)
@@ -86,6 +89,7 @@ topics:
     sources:
       arxiv: [cs.IR, cs.CL]
       hn_queries: ["RAG", "reranker"]
+      github_queries: ["RAG", "reranker"]
 
   - name: llmops-evals
     label: Testing and monitoring AI
@@ -103,6 +107,7 @@ topics:
     sources:
       arxiv: [cs.CL, cs.AI]
       hn_queries: ["LLM eval", "observability LLM"]
+      github_queries: ["LLM evaluation", "LLM observability"]
 
   - name: memory-context
     label: AI memory
@@ -120,6 +125,7 @@ topics:
     sources:
       arxiv: [cs.CL, cs.AI]
       hn_queries: ["agent memory", "context engineering"]
+      github_queries: ["agent memory", "context engineering"]
 
   - name: agent-security
     label: AI safety and security
@@ -136,6 +142,7 @@ topics:
     sources:
       arxiv: [cs.CR, cs.AI, cs.CL]
       hn_queries: ["prompt injection", "agent security"]
+      github_queries: ["prompt injection", "AI agent security", "reverse engineering", "jailbreak"]
 
   - name: enterprise-genai
     label: AI in real companies
@@ -151,6 +158,7 @@ topics:
     sources:
       arxiv: []
       hn_queries: ["LLM in production", "lessons learned LLM"]
+      github_queries: ["LLM gateway"]
 
 global_sources:
   hf_daily_papers: true

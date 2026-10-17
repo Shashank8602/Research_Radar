@@ -223,6 +223,23 @@ def test_compose_renders_sections_and_degraded_banner():
     assert "Why it matters: Why." in text and "Imagine a shop." in text
 
 
+def test_compose_deepdive_button_alone_and_with_votes():
+    c = cand(0, rank=1)
+    c.section, c.position, c.summary, c.why_it_matters, c.headline = "core", 1, "S.", "W.", "H"
+    kw = dict(digest_date=date(2026, 10, 17), run_id="r1", degraded=False)
+    only = compose.build_context([c], links=lambda _c: {"deepdive": "https://app.test/?t=abc"}, **kw)
+    html, text = compose.render(only)
+    assert "Explain in depth" in html and "https://app.test/?t=abc" in html
+    assert "More like this" not in html and "about 30 seconds" in html
+    assert "Explain in depth: https://app.test/?t=abc" in text
+    both = {"up": "https://w.test/f/u", "down": "https://w.test/f/d", "save": "https://w.test/f/s",
+            "deepdive": "https://app.test/?t=abc"}
+    html, _ = compose.render(compose.build_context([c], links=lambda _c: both, **kw))
+    assert all(x in html for x in ("Explain in depth", "More like this", "Less like this", "Save for later"))
+    plain, _ = compose.render(compose.build_context([c], **kw))
+    assert "Explain in depth" not in plain and "about 30 seconds" not in plain
+
+
 # ---- collect isolation -------------------------------------------------------------------
 def test_collect_all_isolates_failing_sources(monkeypatch):
     from radar import collect as col
@@ -234,6 +251,7 @@ def test_collect_all_isolates_failing_sources(monkeypatch):
     monkeypatch.setattr(col.arxiv, "fetch", boom)
     monkeypatch.setattr(col.hf_papers, "fetch", lambda: ok)
     monkeypatch.setattr(col.hn, "fetch", boom)
+    monkeypatch.setattr(col.github, "fetch", boom)
     monkeypatch.setattr(col.rss, "fetch", boom)
     result = col.collect_all(load_config())
     assert [i.url for i in result.items] == ["https://a.com/1"]

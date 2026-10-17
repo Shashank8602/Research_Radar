@@ -19,7 +19,8 @@ import psycopg
 from radar.models import Candidate
 
 ACTIONS = ("up", "down", "save")
-TTL_DAYS = 30
+TTL_DAYS = 30  # vote links
+DEEPDIVE_TTL_DAYS = 7  # deep-dive links: a week is plenty for a personal digest (D-051)
 
 
 def _b64(b: bytes) -> str:
@@ -71,6 +72,13 @@ def create_links(
             out[c.id][action] = f"{base}/f/{token}"
     conn.commit()
     return out
+
+
+def deepdive_link(item_id: str, run_id: str, *, base_url: str, secret: str) -> str:
+    """Signed link to the deep-dive app. Unlike vote links it is stateless and reusable, so the
+    reader can reopen a chat for a week (no row in `feedback_tokens`)."""
+    token, _, _ = mint(item_id, run_id, "deepdive", secret, ttl_days=DEEPDIVE_TTL_DAYS)
+    return f"{base_url.rstrip('/')}/?t={token}"
 
 
 def prune_expired(conn: psycopg.Connection) -> int:

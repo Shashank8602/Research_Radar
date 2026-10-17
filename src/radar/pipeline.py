@@ -213,11 +213,18 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
 
     # 6. compose + send
     env = get_env()
-    link_map = None
-    if send_email and chosen and env.feedback_signing_secret and env.feedback_base_url:
-        link_map = feedback.create_links(
-            conn, run_id, chosen, base_url=env.feedback_base_url, secret=env.feedback_signing_secret
-        )
+    link_map: dict[str, dict[str, str]] | None = None
+    if send_email and chosen and env.feedback_signing_secret:
+        link_map = {c.id: {} for c in chosen}
+        if env.feedback_base_url:
+            link_map = feedback.create_links(
+                conn, run_id, chosen, base_url=env.feedback_base_url, secret=env.feedback_signing_secret
+            )
+        if env.deepdive_base_url:
+            for c in chosen:
+                link_map[c.id]["deepdive"] = feedback.deepdive_link(
+                    c.id, run_id, base_url=env.deepdive_base_url, secret=env.feedback_signing_secret
+                )
     with tracing.stage_span("compose-digest", input={"items": len(chosen), "degraded": degraded}) as span:
         ctx = compose.build_context(
             chosen, digest_date=digest_date, run_id=run_id, degraded=degraded,

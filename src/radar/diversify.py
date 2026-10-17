@@ -13,12 +13,17 @@ def topic_of(c: Candidate) -> str:
 
 
 def mmr_select(
-    cands: list[Candidate], k: int, lam: float, max_per_topic: int | None = None
+    cands: list[Candidate],
+    k: int,
+    lam: float,
+    max_per_topic: int | None = None,
+    max_per_source: dict[str, int] | None = None,
 ) -> list[Candidate]:
     """Maximal Marginal Relevance: balance rank against similarity to already-picked items.
 
     With `max_per_topic`, no topic takes more than that many slots while other topics still have
-    eligible items (the cap is relaxed only if slots would otherwise stay empty).
+    eligible items (the cap is relaxed only if slots would otherwise stay empty). `max_per_source`
+    does the same per source type, e.g. {"github": 2} so new repos cannot crowd out papers.
     """
     if not cands or k <= 0:
         return []
@@ -42,6 +47,12 @@ def mmr_select(
                 counts[topic_of(s)] = counts.get(topic_of(s), 0) + 1
             under_cap = [c for c in pool if counts.get(topic_of(c), 0) < max_per_topic]
             allowed = under_cap or pool
+        if max_per_source:
+            by_src: dict[str, int] = {}
+            for s in chosen:
+                by_src[s.source] = by_src.get(s.source, 0) + 1
+            under_src = [c for c in allowed if by_src.get(c.source, 0) < max_per_source.get(c.source, k)]
+            allowed = under_src or allowed
         best = max(allowed, key=mmr)
         chosen.append(best)
         pool.remove(best)
@@ -62,6 +73,7 @@ def select_digest(cands: list[Candidate], config: AppConfig) -> list[Candidate]:
     core = mmr_select(
         regular, quotas.get("core", 5), config.diversify.mmr_lambda,
         max_per_topic=config.diversify.max_per_topic,
+        max_per_source=config.diversify.max_per_source,
     )
     taken = {c.id for c in core}
 

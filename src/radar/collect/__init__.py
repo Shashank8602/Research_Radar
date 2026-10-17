@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from pydantic import BaseModel, Field
 
-from radar.collect import arxiv, hf_papers, hn, rss
+from radar.collect import arxiv, github, hf_papers, hn, rss
 from radar.config import AppConfig
 from radar.models import RawItem
 
@@ -65,6 +65,12 @@ def collect_all(config: AppConfig) -> CollectResult:
     queries = sorted({q for t in config.topics for q in t.sources.hn_queries})
     if queries:
         run("hn", lambda: hn.fetch(queries))
+    gh_queries = sorted({q for t in config.topics for q in t.sources.github_queries})
+    if gh_queries:
+        from radar.config import get_env
+
+        gh = config.global_sources.github
+        run("github", lambda: github.fetch(gh_queries, token=get_env().github_token, **gh.model_dump()))
     for feed in config.global_sources.rss:
         run(f"rss:{feed.name}", lambda f=feed: rss.fetch(f.name, f.feed))
     for w in config.watchlist:

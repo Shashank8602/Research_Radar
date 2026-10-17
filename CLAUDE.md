@@ -16,7 +16,7 @@ If code and docs disagree, fix the docs in the same change.
 
 ## Current status
 
-Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Phase 3 (deep dive): agent, tools and Streamlit app built and verified locally; email links and Space deployment pending. See [flow.md](flow.md) for the stage-by-stage status table.
+Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Phase 3 (deep dive): live on Streamlit Community Cloud with an "Explain in depth" button in the email; polish pending (persistent chat history, more source types). See [flow.md](flow.md) for the stage-by-stage status table.
 
 ## Commands
 
@@ -51,7 +51,7 @@ tests/            pytest, no network
 .claude/skills/langfuse/   Langfuse skill (docs-first workflow for tracing/evals)
 ```
 
-Pipeline modules: `collect/`, `dedupe.py`, `embed.py`, `filter.py`, `judge.py`, `diversify.py`, `compose.py` (+ `templates/`), `pipeline.py`. Workflows: `ci.yml`, `daily-digest.yml`.
+Pipeline modules: `collect/` (arxiv, hf_papers, hn, rss, github), `dedupe.py`, `embed.py`, `filter.py`, `judge.py`, `diversify.py`, `compose.py` (+ `templates/`), `pipeline.py`. Workflows: `ci.yml`, `daily-digest.yml`.
 
 Deep dive: logic in `src/radar/agent/` (tools, index, graph, store), Streamlit page in `agent/app.py` (run with `python -m uv run streamlit run agent/app.py`). Planned (not built yet): `dashboard/`.
 

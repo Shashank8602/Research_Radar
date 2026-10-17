@@ -20,6 +20,7 @@ MAX_REDIRECTS = 4
 MAX_PAGES = 60
 USER_AGENT = "ResearchRadar-DeepDive/0.1 (personal research digest)"
 
+_GITHUB_REPO = re.compile(r"^https?://github\.com/([\w.\-]+)/([\w.\-]+?)(?:\.git)?/?$")
 _ARXIV_ID = re.compile(r"arxiv\.org/(?:abs|pdf|html)/([\w.\-/]+?)(?:v\d+)?(?:\.pdf)?/?$")
 
 
@@ -96,7 +97,11 @@ def _html_text(html: str, url: str) -> tuple[str, str]:
 
 
 def candidate_urls(url: str) -> list[str]:
-    """arXiv pages: the full-text HTML first, then the PDF, then the abstract page itself."""
+    """arXiv: full-text HTML, then PDF, then the abstract page. GitHub repo: its README, then the page."""
+    if g := _GITHUB_REPO.match(url):
+        owner, repo = g.groups()
+        raw = f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD"
+        return [f"{raw}/README.md", f"{raw}/readme.md", f"{raw}/README.rst", url]
     m = _ARXIV_ID.search(url)
     if not m:
         return [url]
@@ -118,9 +123,14 @@ def fetch_text(url: str, *, client: httpx.Client | None = None) -> Doc:
                     if sum(len(p) for p in pages) > 200:
                         return Doc(final, url, "pdf", pages)
                     raise FetchError("That PDF has no readable text.")
-                text, title = _html_text(body.decode("utf-8", errors="replace"), final)
+                decoded = body.decode("utf-8", errors="replace")
+                if ctype == "text/plain":  # a raw README or text file: already text, keep it whole
+                    if len(decoded.strip()) > 200:
+                        return Doc(final, url, "text", [decoded])
+                    raise FetchError("That file has too little text to read.")
+                text, title = _html_text(decoded, final)
                 if len(text) > 500:
-                    return Doc(final, title, "html" if ctype != "text/plain" else "text", [text])
+                    return Doc(final, title, "html", [text])
                 raise FetchError("No readable article text was found on that page.")
             except (FetchError, httpx.HTTPError) as e:
                 last = e if isinstance(e, FetchError) else FetchError("The site could not be reached.")

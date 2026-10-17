@@ -28,6 +28,8 @@ class Env(BaseSettings):
     langfuse_host: str = "https://cloud.langfuse.com"
     feedback_signing_secret: str | None = None  # HMAC key shared with the Worker
     feedback_base_url: str | None = None  # e.g. https://research-radar-feedback.<sub>.workers.dev
+    github_token: str | None = None  # optional; raises the GitHub search limit (Actions provides one)
+    deepdive_base_url: str | None = "https://research-radar-deepdive.streamlit.app"  # empty = no Deep dive links
     app_env: str = "development"  # development | production -> Langfuse environment
     app_release: str | None = None  # e.g. git sha, set by CI
 
@@ -64,6 +66,7 @@ class DigestConfig(BaseModel):
 class TopicSources(BaseModel):
     arxiv: list[str] = Field(default_factory=list)
     hn_queries: list[str] = Field(default_factory=list)
+    github_queries: list[str] = Field(default_factory=list)  # repo search terms (new repos with stars)
     rss: list[str] = Field(default_factory=list)
 
 
@@ -84,8 +87,18 @@ class RssSource(BaseModel):
     feed: str
 
 
+class GithubSettings(BaseModel):
+    window_days: int = 14  # only repos created this recently
+    min_stars: int = 100  # ...that have already caught on
+    per_query: int = 10
+    max_repos: int = 40  # README is fetched for these only
+    readme_chars: int = 1200
+    exclude: list[str] = Field(default_factory=lambda: ["nsfw", "porn", "hentai", "casino", "betting", "airdrop"])
+
+
 class GlobalSources(BaseModel):
     hf_daily_papers: bool = True
+    github: GithubSettings = Field(default_factory=GithubSettings)
     rss: list[RssSource] = Field(default_factory=list)
 
 
@@ -127,6 +140,7 @@ class JudgeConfig(BaseModel):
 class DiversifyConfig(BaseModel):
     mmr_lambda: float = 0.6
     max_per_topic: int = 2  # in the core section
+    max_per_source: dict[str, int] = Field(default_factory=dict)  # e.g. {github: 2} in the core section
 
 
 class PersonalizeConfig(BaseModel):

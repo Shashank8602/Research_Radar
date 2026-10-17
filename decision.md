@@ -51,6 +51,10 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-053 | 3 | Vote result page: a tick and one message, tries to close its own tab after 2.5 s | Accepted |
+| D-052 | 3 | New GitHub repos with a README snippet, capped at 2 core picks, so repos join the papers | Accepted |
+| D-051 | 3 | Deep-dive links last 7 days (vote links stay 30) | Accepted |
+| D-050 | 3 | Email gets an Explain-in-depth button: stateless signed deepdive token to the Community Cloud app | Accepted |
 | D-049 | 3 | Deep dive embeds in batches of 4 (2.4 GB -> 0.56 GB) and deploys to Streamlit Community Cloud | Accepted (pending deploy) |
 | D-048 | 3 | Deep dive deploys as a Docker Space built by a script from this repo | Superseded by D-049 |
 | D-045 | 3 | Deep dive UI is Streamlit (not FastAPI + htmx) | Accepted |
@@ -434,3 +438,60 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   Render stays the fallback if Community Cloud will not take the private repo (it needs a keyword-search or leaner setup
   at 512 MB). The unused `deploy/` Hugging Face kit is to be removed once the deploy works.
 - **Not verified:** whether free accounts may deploy a private repo (sources disagree); real memory on the host.
+
+### D-050: Explain-in-depth button in the email
+- **Decision:** each digest item gets a button linking to `DEEPDIVE_BASE_URL/?t=<token>` (`Env.deepdive_base_url`,
+  default the Community Cloud app; set it empty to switch the links off). The token is `feedback.mint(..., "deepdive")`:
+  signed with the same HMAC secret, 30-day expiry, but **stateless and reusable**, with no `feedback_tokens` row, so the
+  reader can reopen a chat. Vote buttons are unchanged; links render independently (the deep dive works even if the vote
+  Worker URL is unset). The email footer notes the first open can take about 30 seconds (the app wakes from sleep).
+  The plain-text version carries the link too. No CI change: the URL is public and defaulted in code; the signing secret
+  is already a GitHub secret.
+- **Why:** reuses the existing signing scheme; a reusable token fits a multi-turn chat, and the app only reads data.
+- **Verified:** 84 offline tests; a dry-run digest was emailed with the new buttons; a locally minted link opened the live
+  app and answered follow-ups.
+- **Open:** chat history is lost on an app restart (in-memory checkpointer); README and blog-post fixtures.
+
+### D-051: Deep-dive links last 7 days
+- **Decision:** `feedback.DEEPDIVE_TTL_DAYS = 7`; vote links keep 30 (`TTL_DAYS`) because labelling an older digest is
+  a legitimate use. A week is enough for a one-reader digest and limits how long a forwarded or leaked link works.
+- **Why:** the reader asked for a shorter life; the token is stateless, so expiry is the only revocation there is.
+
+### D-052: GitHub repos as a source (and why the digest was all papers)
+- **Problem:** the digest was almost all papers. The sources were arXiv, Hugging Face daily papers, Hacker News keyword
+  searches, a blog feed and release feeds for four watched tools, so nothing could find a new repo that suddenly gets
+  attention (e.g. a popular new agent skill).
+- **Decision:** `collect/github.py` searches repos CREATED in the last 14 days that already have 100+ stars, per topic
+  (`sources.github_queries` in `topics.yaml`; knobs under `global_sources.github`). For the 25 strongest it fetches the
+  README and puts the cleaned first 1,200 characters in the snippet, so the judge and the editor read the README, not
+  only the one-line description. Forks and archived repos are skipped. One failing query is logged and skipped; the
+  source only fails if every query does. Pacing is 8 s per search without a token, 2.2 s with one (`GITHUB_TOKEN`,
+  which the daily workflow supplies). `diversify.max_per_source: {github: 2}` caps repos in the core section. The deep
+  dive reads a repo's README directly (`raw.githubusercontent.com`, plain text kept whole).
+- **Why the cap:** the first live run put 5 of 8 items from GitHub and 1 paper, because new, starred repos score high on
+  recency and popularity. With the cap: 3 repos (2 core + 1 exploration), 3 papers, 2 tool updates.
+- **Verified:** live collector returned 25 repos with README text; dry runs before and after the cap; 90 offline tests;
+  deep dive on a real repo answered "how do I install it" from its README.
+- **Risks:** star counts can be inflated (one repo had 14k stars in a week), so stars only feed the existing log-capped
+  popularity term; the judge still decides relevance. Repos in other languages appear (the judge writes English).
+  The collector adds ~30 s in CI (about 2 minutes locally without a token).
+- **Queries (probed live, 14 days / 100+ stars):** exact phrases return few repos ("deep research", "guardrails",
+  "text-to-SQL", "document parsing" gave 0, so were left out); GitHub's `topic:` tags return many (`topic:claude-code` 46,
+  `topic:ai-agents` 31, `topic:mcp` 26) but also off-topic repos that the relevance filter removes. Added claude code,
+  coding agent, multi-agent, browser agent, three `topic:` tags (agentic-systems) and reverse engineering, jailbreak
+  (agent-security): 21 queries, 39 repos, about 3.5 minutes locally and under a minute in CI. `max_repos` is now 40.
+  `global_sources.github.exclude` drops adult and gambling repos (a 2,500-star NSFW skill appeared in the live probe).
+  Unauthenticated README fetches are limited to 60 an hour, so local runs often lack README text; CI has a token.
+- **Rejected:** GitHub "trending" page scraping (no API, brittle); searching old repos by recent pushes (returns the
+  well-known giants, not what is new).
+
+### D-053: Vote result page is a tick and a message that closes itself
+- **Problem:** after a one-click vote the reader landed on a card page (brand, heading, headline, "close this tab"),
+  which felt like an extra step. An in-place tick on the email button is not possible: email clients strip scripts and
+  the message is fixed once sent (AMP for Email could, but needs sender registration with Google; rejected as too heavy).
+- **Decision:** `tickPage` in `worker/src/index.js` shows only a large tick and the action message ("Noted. You'll see
+  more items like this."). After 2.5 s it calls `window.close()`; browsers allow that only for some tabs, so 0.5 s later a
+  small "You can close this tab." hint appears if the tab is still open. A repeated click shows the same page with
+  "Already recorded." in front. The confirm page for unverified clients (D-047) is unchanged.
+- **Not verified here:** whether the reader's browser actually closes the tab (depends on how the mail app opens links).
+- **Rejected:** a blank 204 response (no confirmation at all); voting inside the deep-dive app (a different flow).

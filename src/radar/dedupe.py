@@ -19,7 +19,7 @@ from radar.models import Candidate, RawItem
 _TRACKING = re.compile(r"^(utm_.*|fbclid|gclid|ref|ref_src|source|mc_cid|mc_eid|igshid|share)$", re.I)
 _ARXIV_ID = re.compile(r"(\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?", re.I)
 # Higher wins when the same story arrives from several sources.
-SOURCE_PRIORITY = {"arxiv": 5, "watchlist": 4, "hf_papers": 3, "rss": 2, "hn": 1}
+SOURCE_PRIORITY = {"arxiv": 5, "watchlist": 4, "hf_papers": 3, "github": 3, "rss": 2, "hn": 1}
 
 
 def canonical_url(url: str) -> str:

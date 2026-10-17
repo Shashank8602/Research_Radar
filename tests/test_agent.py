@@ -294,3 +294,27 @@ def test_parse_item_id_tolerates_copy_paste_punctuation_and_rejects_junk():
     for bad in ("", "not-a-uuid", good[:-1]):
         with pytest.raises(LookupError):
             parse_item_id(bad)
+
+
+def test_github_repo_url_reads_the_readme_first():
+    assert tools.candidate_urls("https://github.com/acme/skill-x")[0] == (
+        "https://raw.githubusercontent.com/acme/skill-x/HEAD/README.md"
+    )
+    assert tools.candidate_urls("https://github.com/acme/skill-x/")[-1] == "https://github.com/acme/skill-x/"
+    # Not a bare repo URL (an issue, a file): fetched as an ordinary page.
+    assert tools.candidate_urls("https://github.com/acme/skill-x/issues/3") == [
+        "https://github.com/acme/skill-x/issues/3"
+    ]
+
+
+def test_fetch_readme_as_plain_text(dns, monkeypatch):
+    monkeypatch.setitem(HOSTS, "raw.githubusercontent.com", "185.199.108.133")
+    readme = "# Skill X\n\nReverse engineers a binary and explains each function. " * 8
+
+    def handler(req):
+        if req.url.path.endswith("/README.md"):
+            return httpx.Response(200, text=readme, headers={"content-type": "text/plain; charset=utf-8"})
+        return httpx.Response(404)
+
+    doc = tools.fetch_text("https://github.com/acme/skill-x", client=_client(handler))
+    assert doc.kind == "text" and "Reverse engineers a binary" in doc.text

@@ -22,6 +22,7 @@ SOURCE_LABELS = {
     "hn": "Tech community discussion",
     "rss": "Blog post",
     "watchlist": "New tool release",
+    "github": "Open-source project",
 }
 _env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["j2", "html"]))
 
@@ -61,7 +62,9 @@ def build_context(
                 ],
             }
         )
+    has_deepdive = any(e["links"] and e["links"].get("deepdive") for s in sections for e in s["entries"])
     return {
+        "has_deepdive": has_deepdive,
         "date": digest_date.strftime("%a %d %b %Y"),
         "items": items,
         "sections": sections,
@@ -80,7 +83,10 @@ def render(ctx: dict) -> tuple[str, str]:
             lines += [it["headline"], f"({it['kind']}) {it['url']}", it["summary"]]
             if it["example"]:
                 lines += [it["example"]]
-            lines += [f"Why it matters: {it['why_it_matters']}", ""]
+            lines += [f"Why it matters: {it['why_it_matters']}"]
+            if it["links"] and it["links"].get("deepdive"):
+                lines += [f"Explain in depth: {it['links']['deepdive']}"]
+            lines += [""]
     return html, "\n".join(lines)
 
 

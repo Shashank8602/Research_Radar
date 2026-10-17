@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 25
     env:
       APP_ENV: production
+      GITHUB_TOKEN: ${{ github.token }}
       APP_RELEASE: ${{ github.sha }}
       FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.cache/fastembed
       DATABASE_URL: ${{ secrets.DATABASE_URL }}

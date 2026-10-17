@@ -16,11 +16,17 @@ def _model(name: str):
     return TextEmbedding(model_name=name)
 
 
-def embed_texts(texts: list[str], model: str = DEFAULT_MODEL) -> np.ndarray:
-    """Return an (n, dim) float32 array of L2-normalised embeddings."""
+def embed_texts(
+    texts: list[str], model: str = DEFAULT_MODEL, batch_size: int | None = None
+) -> np.ndarray:
+    """Return an (n, dim) float32 array of L2-normalised embeddings.
+
+    `batch_size` defaults to FastEmbed's 256, which spikes memory to ~2 GB on a long paper; the
+    deep-dive app passes a small value so it fits a 512 MB free host."""
     if not texts:
         return np.zeros((0, 0), dtype=np.float32)
-    vecs = np.array(list(_model(model).embed(texts)), dtype=np.float32)
+    kwargs = {"batch_size": batch_size} if batch_size else {}
+    vecs = np.array(list(_model(model).embed(texts, **kwargs)), dtype=np.float32)
     norms = np.linalg.norm(vecs, axis=1, keepdims=True)
     return vecs / np.clip(norms, 1e-12, None)
 

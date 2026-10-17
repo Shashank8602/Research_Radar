@@ -51,6 +51,8 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-049 | 3 | Deep dive embeds in batches of 4 (2.4 GB -> 0.56 GB) and deploys to Streamlit Community Cloud | Accepted (pending deploy) |
+| D-048 | 3 | Deep dive deploys as a Docker Space built by a script from this repo | Superseded by D-049 |
 | D-045 | 3 | Deep dive UI is Streamlit (not FastAPI + htmx) | Accepted |
 | D-046 | 3 | Deep dive agent: tool-less LangGraph, code-side retrieval, cited answers, SSRF-guarded fetch | Accepted (local, not deployed) |
 
@@ -409,3 +411,26 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Risk:** a scanner that spoofs browser navigation headers could consume a token. Judged unlikely for Gmail; the vote
   would simply read "Already recorded" and can be changed by the other button's link.
 - **Deployed:** 2026-10-17, version f4f2454f.
+
+### D-048: Deep dive deploys as a Docker Space assembled by `deploy/build_space.py` (SUPERSEDED by D-049)
+- **Problem:** the Space creation form offered only Gradio and Static, and the Space is a separate git repo that must not
+  carry secrets or dev-only files.
+- **Decision:** create the Space as Gradio, then replace its README header with `sdk: docker`, `app_port: 8501`.
+  `deploy/build_space.py` copies only `src/radar/`, `agent/app.py` and `topics.yaml` into a clone of the Space repo
+  (`deploy/_space_build/`, git-ignored), pins dependencies from `uv.lock`, and writes the Dockerfile (non-root uid 1000, the
+  embedding model baked into the image so a cold start does not download it). Secrets live only in the Space settings;
+  `APP_ENV=production` disables the local `?item=` shortcut so only signed links open a chat. The Space is Public (no PRO),
+  protected by the signed token, not by hiding the URL.
+- **Verified:** the assembled folder runs on its own (app loads and answers an item). The Docker build itself has not run yet.
+
+### D-049: Small embedding batches, and Streamlit Community Cloud as the host
+- **Problem:** Hugging Face now requires PRO for Gradio and Docker Spaces on free CPU (HTTP 402 on create; the form forced
+  ZeroGPU), so D-048 is impossible on the free tier. Free hosts have little memory (Render 512 MB, Community Cloud ~1 GB)
+  and the app measured 2,405 MB after one deep dive.
+- **Finding:** the memory was FastEmbed's default batch size of 256, not the model. Embedding the 132 chunks of a paper:
+  batch 256 = 2,139 MB, 16 = 573 MB, 4 = 317 MB. The whole app with batch 4 measured 562 MB and gave the same answers.
+- **Decision:** `embed_texts(batch_size=...)`; the deep-dive index uses 4. The pipeline keeps the default. Deploy to
+  Streamlit Community Cloud from the GitHub repo (`agent/app.py`, secrets in its settings, `APP_ENV=production`).
+  Render stays the fallback if Community Cloud will not take the private repo (it needs a keyword-search or leaner setup
+  at 512 MB). The unused `deploy/` Hugging Face kit is to be removed once the deploy works.
+- **Not verified:** whether free accounts may deploy a private repo (sources disagree); real memory on the host.

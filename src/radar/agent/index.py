@@ -12,6 +12,7 @@ from radar.embed import embed_texts
 
 CHUNK_CHARS = 900
 OVERLAP_CHARS = 150
+EMBED_BATCH = 4  # small batches keep peak memory near 300 MB instead of ~2 GB (see D-049)
 
 
 @dataclass
@@ -55,7 +56,7 @@ def chunk_doc(doc: Doc) -> list[Chunk]:
 class Index:
     def __init__(self, chunks: list[Chunk]):
         self.chunks = chunks
-        self._vecs = embed_texts([c.text for c in chunks]) if chunks else np.zeros((0, 0))
+        self._vecs = embed_texts([c.text for c in chunks], batch_size=EMBED_BATCH) if chunks else np.zeros((0, 0))
 
     def search(self, query: str, k: int = 6) -> list[Chunk]:
         if not self.chunks:

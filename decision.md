@@ -574,8 +574,13 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Not done:** deploying the dashboard (a second Community Cloud app needing the owner's secrets); optional.
 
 ### D-060: Making the repository public safely
-- **Audit (all commits):** no API keys, tokens or database URLs in any diff (regexes for every provider in use); `.env` and key
-  files never tracked; the only infrastructure identifier was one real Worker URL in `flow.md` (now a placeholder).
+- **Audit (all commits), verified three ways:** (1) provider-pattern regexes over every patch in history (21,242 lines), with the
+  scanner first checked against fake keys (5 of 5 caught); (2) the same on the current tree; (3) the exact value of each of the 16
+  real settings in the local `.env` searched across history and tree: only `SMTP_HOST` and `LANGFUSE_HOST` (public hostnames) appear.
+  No key, password, database URL, signing secret or personal address is in the repository. `.env` and key files were never tracked;
+  the only infrastructure identifier was one real Worker URL in `flow.md` (now a placeholder).
+- **Correction:** the first audit pass combined two git flags that cannot be used together and hid the error, so its "nothing found"
+  proved nothing. The checks above replaced it. Lesson: a scan needs a positive control (a known secret it must catch).
 - **Personal data:** the owner's Gmail address was in every commit's author/committer metadata (not in any file or message).
   **Decision:** rewrite all commits to GitHub's no-reply address (`131436859+Shashank8602@users.noreply.github.com`). Done
   with a local backup bundle first and a byte-for-byte tree comparison afterwards. Residual risk: GitHub can keep

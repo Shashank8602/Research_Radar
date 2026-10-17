@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import psycopg
@@ -52,3 +53,18 @@ def recent_items(conn: psycopg.Connection, limit: int = 20) -> list[dict]:
         "where not r.is_dry_run order by r.digest_date desc, d.position limit %s",
         (limit,),
     ).fetchall()
+
+
+def load_chat(conn: psycopg.Connection, item_id: str) -> list[dict]:
+    """The saved transcript for an item ([] if none): dicts with role, text, citations, notice."""
+    row = conn.execute("select transcript from deepdive_chats where item_id = %s", (item_id,)).fetchone()
+    return list(row["transcript"]) if row else []
+
+
+def save_chat(conn: psycopg.Connection, item_id: str, transcript: list[dict]) -> None:
+    conn.execute(
+        "insert into deepdive_chats (item_id, transcript, updated_at) values (%s, %s::jsonb, now()) "
+        "on conflict (item_id) do update set transcript = excluded.transcript, updated_at = now()",
+        (item_id, json.dumps(transcript)),
+    )
+    conn.commit()

@@ -318,3 +318,38 @@ def test_fetch_readme_as_plain_text(dns, monkeypatch):
 
     doc = tools.fetch_text("https://github.com/acme/skill-x", client=_client(handler))
     assert doc.kind == "text" and "Reverse engineers a binary" in doc.text
+
+
+# --- saved chats ------------------------------------------------------------------------------
+
+
+def test_history_from_chat_adds_the_opening_request():
+    from radar.agent.graph import FIRST_QUESTION, history_from_chat
+
+    chat = [
+        {"role": "assistant", "text": "First answer [1]."},
+        {"role": "user", "text": "Why?"},
+        {"role": "assistant", "text": "Because [2]."},
+    ]
+    assert history_from_chat(chat) == [
+        ("human", FIRST_QUESTION), ("ai", "First answer [1]."), ("human", "Why?"), ("ai", "Because [2].")
+    ]
+    assert history_from_chat([]) == []
+
+
+def test_history_is_replayed_after_a_restart_but_never_duplicated():
+    from radar.agent.graph import history_from_chat
+
+    prompts = []
+
+    def llm(prompt, schema, **kw):
+        prompts.append(prompt)
+        return DeepAnswer(answer=f"Reply {len(prompts)}", cited=[]), "stub"
+
+    saved = [{"role": "assistant", "text": "Saved answer."}, {"role": "user", "text": "Saved question?"},
+             {"role": "assistant", "text": "Saved reply."}]
+    g = _graph(llm)  # a fresh process: the graph remembers nothing
+    ask(g, "item-1", "New question?", history=history_from_chat(saved))
+    assert "Saved question?" in prompts[0] and "Saved reply." in prompts[0]
+    ask(g, "item-1", "Another?", history=history_from_chat(saved))  # now it has its own memory
+    assert prompts[1].count("Saved reply.") == 1

@@ -141,11 +141,11 @@ flowchart LR
     G --> FT[Fetch full text<br/>arXiv HTML · PyMuPDF · trafilatura]
     FT --> IX[Throwaway index<br/>chunk + embed]
     IX --> AN[Cited answer]
-    AN --> CH[(Checkpoints<br/>per item/session)]
+    AN --> CH[(Saved chat<br/>per item, Postgres)]
     CH --> FU[Follow-up question] --> G
 ```
 
-Safety: read-only tools only; fetched text is untrusted; private-network URLs are blocked. Status: ✅ live on Streamlit Community Cloud (D-049); an "Explain in depth" button in each email item opens it with a signed link (D-050). Pending: Postgres checkpointer, README/blog fixtures.
+Safety: read-only tools only; fetched text is untrusted; private-network URLs are blocked. Status: ✅ live on Streamlit Community Cloud (D-049); an "Explain in depth" button in each email item opens it with a signed link (D-050). Chats are saved per item in Postgres (D-054), so a reopened link shows the earlier conversation. Pending: blog-post fixture check.
 
 ---
 

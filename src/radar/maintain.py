@@ -39,6 +39,7 @@ class MaintenanceReport(BaseModel):
     items_slimmed: int = 0
     items_deleted: int = 0
     tokens_deleted: int = 0
+    chats_deleted: int = 0
     db_size_mb: float = 0.0
     warning: str | None = None
 
@@ -84,6 +85,12 @@ def run_maintenance(conn: psycopg.Connection, cfg: RetentionConfig, *, preview: 
     # 4. Feedback-link tokens well past expiry.
     r.tokens_deleted = ex(
         "delete from feedback_tokens where expires_at < now() - make_interval(days => %(grace)s)", p
+    ).rowcount
+
+    # 5. Deep-dive chats not touched for chat_keep_days (links expire after 7 days anyway).
+    r.chats_deleted = ex(
+        "delete from deepdive_chats where updated_at < now() - make_interval(days => %(chat)s)",
+        {"chat": cfg.chat_keep_days},
     ).rowcount
 
     if preview:

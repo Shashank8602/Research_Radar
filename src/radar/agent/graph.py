@@ -160,7 +160,21 @@ def _snippet_doc(item: dict):
     return Doc(item["url"], item["title"], "text", [f"{item['title']}. {item.get('snippet', '')}"])
 
 
-def ask(graph, item_id: str, question: str | None = None) -> State:
-    """Run one turn on the item's thread. The first turn needs no question."""
+def history_from_chat(chat: list[dict]) -> list[tuple[str, str]]:
+    """Saved chat -> graph messages. The first answer replied to the built-in opening request."""
+    msgs = [("human" if m["role"] == "user" else "ai", m["text"]) for m in chat]
+    if chat and chat[0]["role"] == "assistant":
+        msgs.insert(0, ("human", FIRST_QUESTION))
+    return msgs
+
+
+def ask(graph, item_id: str, question: str | None = None, history: list | None = None) -> State:
+    """Run one turn on the item's thread. The first turn needs no question.
+
+    `history` (see `history_from_chat`) is replayed only when this process has no memory of the
+    thread yet, e.g. a follow-up after an app restart."""
     cfg = {"configurable": {"thread_id": item_id}}
-    return graph.invoke({"item_id": item_id, "question": question or ""}, cfg)
+    payload: dict = {"item_id": item_id, "question": question or ""}
+    if history and not graph.get_state(cfg).values.get("messages"):
+        payload["messages"] = history
+    return graph.invoke(payload, cfg)

@@ -16,7 +16,7 @@ If code and docs disagree, fix the docs in the same change.
 
 ## Current status
 
-Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Phase 3 (deep dive): live on Streamlit Community Cloud with an "Explain in depth" button in the email; polish pending (persistent chat history, more source types). See [flow.md](flow.md) for the stage-by-stage status table.
+Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Phase 3 (deep dive): live on Streamlit Community Cloud with an "Explain in depth" button in the email; chats are saved in Postgres; pending: blog-post fixture check. See [flow.md](flow.md) for the stage-by-stage status table.
 
 ## Commands
 

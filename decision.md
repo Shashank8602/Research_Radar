@@ -51,6 +51,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-054 | 3 | Deep-dive chats are saved per item in Postgres, replayed into the model after a restart | Accepted |
 | D-053 | 3 | Vote result page: a tick and one message, tries to close its own tab after 2.5 s | Accepted |
 | D-052 | 3 | New GitHub repos with a README snippet, capped at 2 core picks, so repos join the papers | Accepted |
 | D-051 | 3 | Deep-dive links last 7 days (vote links stay 30) | Accepted |
@@ -399,8 +400,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Verified:** 22 offline tests (SSRF cases incl. redirect to a metadata address, oversize, PDF page numbers, injection
   fixture, history, citation filtering); a live run on a real arXiv item gave a cited three-part answer and a correct
   follow-up; the Streamlit page loads and handles a follow-up under `AppTest`.
-- **Not done yet:** Postgres checkpointer (chat history is lost on restart; Streamlit session state keeps the
-  visible chat), Hugging Face Space deployment, Deep dive links in the email (needs a `deepdive` token: same HMAC
+- **Not done yet (superseded: see D-049 to D-054):** Postgres checkpointer (done as saved chats, D-054), Hugging Face Space deployment, Deep dive links in the email (needs a `deepdive` token: same HMAC
   scheme as feedback, action `deepdive`, not single-use), GitHub README/blog-post fixture checks.
 
 ### D-047: One-click feedback (amends D-008 / D-031)
@@ -495,3 +495,19 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   "Already recorded." in front. The confirm page for unverified clients (D-047) is unchanged.
 - **Not verified here:** whether the reader's browser actually closes the tab (depends on how the mail app opens links).
 - **Rejected:** a blank 204 response (no confirmation at all); voting inside the deep-dive app (a different flow).
+
+### D-054: Saved deep-dive chats
+- **Problem:** a chat lived in the browser session and the app's memory, so a restart, the app sleeping, or opening the
+  link on another device lost it and cost another model call.
+- **Decision:** table `deepdive_chats` (migration 0005): one row per item holding the rendered transcript (role, text,
+  citations, notice) as JSON, `on delete cascade` from `items`. The app loads it when a browser session starts and saves
+  after each answered turn (best effort: a failed save never breaks the chat). A reopened chat shows at once, with no
+  model call. A follow-up in a process that has forgotten the thread replays the saved turns into the graph's messages
+  (`history_from_chat`, only when the thread is empty, so nothing is duplicated). `radar-maintain` deletes chats not
+  touched for 14 days (`retention.chat_keep_days`; links expire after 7).
+- **Why not LangGraph's Postgres checkpointer (the plan's idea):** the page needs the citation quotes to redraw an old
+  chat and the checkpoint does not hold them; it also adds a second set of tables and a pooled connection to a
+  transaction pooler. Owning one small table is simpler and covers both needs.
+- **Verified:** live: first answer and a follow-up saved (3 messages); a new browser session showed all 3 in 6 s with the
+  same first answer; 93 offline tests (replay only on an empty thread, no duplicates).
+- **Privacy:** transcripts hold only questions about public items; one reader, no per-user rows.

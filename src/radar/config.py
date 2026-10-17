@@ -158,6 +158,7 @@ class RetentionConfig(BaseModel):
     delete_after_days: int = 180  # delete the row entirely
     dry_run_keep_days: int = 14  # test runs' digests and unlabeled scores
     token_grace_days: int = 7  # feedback-link tokens after expiry
+    chat_keep_days: int = 14  # saved deep-dive chats, counted from the last message
     warn_db_mb: int = 400  # free tier is ~500 MB
 
 

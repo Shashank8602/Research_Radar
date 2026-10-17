@@ -11,7 +11,7 @@ import streamlit as st
 
 from radar import db, feedback, tracing
 from radar.agent import store
-from radar.agent.graph import ask, build_graph
+from radar.agent.graph import ask, build_graph, history_from_chat
 from radar.config import get_env
 
 MAX_QUESTIONS_PER_ITEM = 20
@@ -67,7 +67,7 @@ def _show_citations(citations: list[dict]) -> None:
             st.write(c["quote"])
 
 
-def _turn(item_id: str, question: str | None) -> dict | None:
+def _turn(item_id: str, question: str | None, chat: list[dict] | None = None) -> dict | None:
     limits = _counters().setdefault(item_id, {"n": 0, "last": 0.0})
     now = time.monotonic()
     if limits["n"] >= MAX_QUESTIONS_PER_ITEM:
@@ -80,7 +80,7 @@ def _turn(item_id: str, question: str | None) -> dict | None:
     limits["last"] = now
     try:
         with tracing.deepdive_trace(item_id, question) as span:
-            out = ask(_graph(), item_id, question)
+            out = ask(_graph(), item_id, question, history=history_from_chat(chat or []))
             span.update(output={"answer_chars": len(out["answer"]),
                                 "cited": [c["n"] for c in out["citations"]]})
             return out
@@ -89,6 +89,15 @@ def _turn(item_id: str, question: str | None) -> dict | None:
         return None
     finally:
         tracing.flush()
+
+
+def _save(item_id: str, chat: list[dict]) -> None:
+    """Best effort: a failed save must never break the conversation."""
+    try:
+        with db.connect() as conn:
+            store.save_chat(conn, item_id, chat)
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -110,13 +119,20 @@ def main() -> None:
     st.subheader(item.title)
     st.caption(f"[Open the original]({item.url})")
 
-    chat = st.session_state.setdefault(f"chat:{item_id}", [])
+    if f"chat:{item_id}" not in st.session_state:  # new browser session: pick up the saved chat
+        try:
+            with db.connect() as conn:
+                st.session_state[f"chat:{item_id}"] = store.load_chat(conn, item_id)
+        except Exception:
+            st.session_state[f"chat:{item_id}"] = []
+    chat = st.session_state[f"chat:{item_id}"]
     if not chat:
         with st.spinner("Reading the paper... this can take about half a minute."):
             out = _turn(item_id, None)
         if out:
             chat.append({"role": "assistant", "text": out["answer"], "citations": out["citations"],
                          "notice": out.get("notice", "")})
+            _save(item_id, chat)
 
     for msg in chat:
         with st.chat_message(msg["role"]):
@@ -126,16 +142,18 @@ def main() -> None:
             _show_citations(msg.get("citations", []))
 
     if question := st.chat_input("Ask a follow-up about this item"):
+        earlier = list(chat)
         chat.append({"role": "user", "text": question})
         with st.chat_message("user"):
             st.write(question)
         with st.chat_message("assistant"), st.spinner("Thinking..."):
-            out = _turn(item_id, question)
+            out = _turn(item_id, question, earlier)
             if out:
                 st.write(out["answer"])
                 _show_citations(out["citations"])
                 chat.append({"role": "assistant", "text": out["answer"],
                              "citations": out["citations"]})
+                _save(item_id, chat)
 
 
 main()

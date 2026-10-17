@@ -275,6 +275,6 @@ In rough priority, cut from the bottom:
 | Phase 0 | `psycopg` vs. `supabase-py` | `psycopg` (vector SQL is easier) |
 | Phase 0 | Supabase vs. Neon | Supabase |
 | Phase 0 | Pinned Groq model ID | Chosen after testing structured output and rate limits |
-| Phase 3 | FastAPI vs. Streamlit for the deep dive | FastAPI if I want a polished UI, otherwise Streamlit |
+| Phase 3 | FastAPI vs. Streamlit for the deep dive | **Streamlit** (chosen, D-045) |
 | Phase 4 | Buy a domain for Resend | Only if it helps the portfolio |
 | Phase 4 | What to keep from the dev console | Labeling logic → `evals/`; reusable charts → `dashboard/`; everything else deleted |

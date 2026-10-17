@@ -51,6 +51,8 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-045 | 3 | Deep dive UI is Streamlit (not FastAPI + htmx) | Accepted |
+| D-046 | 3 | Deep dive agent: tool-less LangGraph, code-side retrieval, cited answers, SSRF-guarded fetch | Accepted (local, not deployed) |
 
 ---
 
@@ -363,6 +365,37 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   the 1 run referenced by votes kept; nothing changed afterwards.
 - **Rejected:** a soft-delete "trash" flag on every table (more queries to filter it everywhere); keeping
   everything (fills the free tier in ~15 months).
+
+### D-045: Deep dive UI is Streamlit
+- **Problem:** the Phase 3 chat needs a UI. FastAPI + htmx starts faster and gives full control over auth and rate
+  limits; Streamlit is much quicker to build and the user wanted to see how it is done.
+- **Decision:** Streamlit (`agent/app.py`), chosen by the user. All logic stays in `src/radar/agent/`; the page only
+  renders, so swapping to FastAPI later means rewriting one thin file.
+- **Why:** build speed and the user's wish to learn it. Known costs: slower cold start on a sleeping Space, and no
+  request layer, so the signed-token check, per-item question cap (20) and 3 s spacing are done inside the script
+  with in-process counters (reset on restart; acceptable for a one-reader app). Per-IP limiting is not possible
+  in Streamlit, so it is dropped from the plan; the signed token already limits who can open a chat.
+- **Alternatives:** FastAPI + htmx (recommended, not chosen).
+
+### D-046: Deep dive agent design
+- **Decision:** `src/radar/agent/`. `tools.fetch_text` is the only network door: http(s) only, every resolved address
+  must be public (`ip.is_global`, re-checked on every redirect hop), 8 MB and 20 s caps, content-type allow-list;
+  arXiv tries HTML, then PDF, then the abstract page. PDFs keep page numbers (PyMuPDF, first 60 pages), web pages go
+  through trafilatura. `index.py` splits text into ~900-char chunks and keeps an in-memory FastEmbed index per item.
+  `graph.py` is a LangGraph `load_item -> fetch_and_index -> answer` graph with a `MemorySaver` checkpointer keyed by
+  item id. The model has no tools: retrieval is done in code, the passages go into `<source n=..>` blocks (a closing
+  tag inside a page is stripped), the system prompt says sources are untrusted data, and the answer is a validated
+  `DeepAnswer` (text with [n] markers + cited numbers). Cited numbers the model was never given are dropped. Questions
+  are capped at 500 characters, answers at 1800. If the page cannot be read, the digest summary is used and the reader
+  sees a notice. Each turn is one Langfuse trace (`radar-deep-dive-turn`, session = item).
+- **Why:** the strongest defence against prompt injection is that a hijacked model has nothing to call, so the worst
+  case is a wrong paragraph. Plain-language wording rules from D-043 apply to answers.
+- **Verified:** 22 offline tests (SSRF cases incl. redirect to a metadata address, oversize, PDF page numbers, injection
+  fixture, history, citation filtering); a live run on a real arXiv item gave a cited three-part answer and a correct
+  follow-up; the Streamlit page loads and handles a follow-up under `AppTest`.
+- **Not done yet:** Postgres checkpointer (chat history is lost on restart; Streamlit session state keeps the
+  visible chat), Hugging Face Space deployment, Deep dive links in the email (needs a `deepdive` token: same HMAC
+  scheme as feedback, action `deepdive`, not single-use), GitHub README/blog-post fixture checks.
 
 ### D-047: One-click feedback (amends D-008 / D-031)
 - **Problem:** The confirm page meant two clicks per vote. The reader wanted one click and a message for that action.

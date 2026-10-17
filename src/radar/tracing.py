@@ -110,6 +110,28 @@ def run_trace(run_id: str | None, digest_date: str, dry_run: bool) -> Iterator[s
 
 
 @contextmanager
+def deepdive_trace(item_id: str, question: str | None) -> Iterator[Any]:
+    """Root observation for one deep-dive turn. Session = item, so a chat reads as one thread."""
+    if not _enabled:
+        yield _NoopSpan()
+        return
+    from langfuse import propagate_attributes
+
+    with _client().start_as_current_observation(
+        as_type="span", name="radar-deep-dive-turn",
+        input={"item_id": item_id, "question": (question or "")[:200], "first_turn": not question},
+    ) as root:
+        with propagate_attributes(
+            trace_name="radar-deep-dive-turn", session_id=f"deepdive-{item_id}", tags=["deepdive"]
+        ):
+            try:
+                yield root
+            except Exception as e:
+                root.update(level="ERROR", status_message=str(e)[:300])
+                raise
+
+
+@contextmanager
 def eval_trace(input: dict[str, Any]) -> Iterator[Any]:
     """Root observation for one `radar-eval` run (only its LLM checks make it worth tracing).
     Yields the root span (a no-op object when tracing is disabled)."""

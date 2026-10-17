@@ -17,6 +17,9 @@ dependencies = [
     "feedparser>=6.0.14",
     "jinja2>=3.1.6",
     "numpy>=2.4.6",
+    "langgraph>=1.2.16",
+    "trafilatura>=2.3.1",
+    "pymupdf>=1.28.2",
 ]
 
 [dependency-groups]

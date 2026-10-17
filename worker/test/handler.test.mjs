@@ -33,8 +33,12 @@ test("browser click records at once and shows the action message", async () => {
   const html = await res.text();
   assert.deepEqual(calls, ["feedback_token_info", "record_feedback"]);
   assert.match(html, /see more items like this/);
-  assert.match(html, /A headline/);
+  assert.match(html, /class="tick"/);            // the tick mark
+  assert.match(html, /window\.close\(\)/);        // closes itself...
+  assert.match(html, /,\s*2500\)/);               // ...after 2.5 seconds
+  assert.match(html, /id="hint"[^>]*>You can close this tab/);  // fallback hint, hidden until needed
   assert.doesNotMatch(html, /<form/);
+  assert.doesNotMatch(html, /A headline/);       // just a tick and a message
 });
 
 test("each action has its own message", async () => {
@@ -61,8 +65,8 @@ test("HEAD never writes", async () => {
 test("a used link says already recorded, with the same message", async () => {
   fakeDb({ status: "used" });
   const html = await (await get(token("up"), NAV)).text();
-  assert.match(html, /Already recorded/);
-  assert.match(html, /more items like this/);
+  assert.match(html, /Already recorded\. .*more items like this/);
+  assert.match(html, /class="tick"/);
 });
 
 test("bad signature, expired token and failing database are handled", async () => {

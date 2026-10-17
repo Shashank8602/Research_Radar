@@ -111,8 +111,33 @@ function page(title, { mark = "none", heading, text = "", item = "", form = "" }
 
 const problem = (heading, status = 400) =>
   page("Link problem", { mark: "warn", heading, text: "This link may be old, already used, or incomplete." }, status);
-const already = (act, headline = "") =>
-  page("Already recorded", { mark: "ok", heading: "Already recorded", text: act ? act.done : "You've already used this link.", item: headline });
+// Result page after a click: a big tick and one message, then it tries to close its own tab after 2.5 s.
+// Browsers only let a page close a tab in some cases, so if it is still open a moment later, a small
+// "You can close this tab" hint appears instead.
+function tickPage(message, title = "Done") {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>${esc(title)} · Research Radar</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f5f7;color:#1c1e21;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+  main{text-align:center;padding:24px;max-width:420px}
+  .tick{width:84px;height:84px;border-radius:50%;background:#0b57d0;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;animation:pop .35s ease-out}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+  p{font-size:19px;line-height:1.45;margin:0;font-weight:600}
+  #hint{display:none;margin-top:14px;font-size:14px;font-weight:400;color:#65676b}
+</style></head>
+<body><main>
+<div class="tick"><svg viewBox="0 0 24 24" width="46" height="46"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<p>${esc(message)}</p><p id="hint">You can close this tab.</p>
+</main>
+<script>setTimeout(function(){try{window.close()}catch(e){}setTimeout(function(){document.getElementById("hint").style.display="block"},500)},2500)</script>
+</body></html>`;
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+  });
+}
+
+const already = (act) => tickPage(act ? `Already recorded. ${act.done}` : "Already recorded.", "Already recorded");
 
 // A real person clicking a link sends Sec-Fetch-Mode: navigate; server-side scanners and most
 // previewers do not. Anything unsure falls back to the confirm page.
@@ -123,8 +148,8 @@ function isBrowserClick(request) {
 
 async function record(env, claims, act, headline) {
   const result = await rpc(env, "record_feedback", { p_nonce: claims.n, p_item: claims.i, p_run: claims.r, p_action: claims.a });
-  if (result === "ok") return page("Done", { mark: "ok", heading: act.done, item: headline, text: "You can close this tab." });
-  if (result === "used") return already(act, headline);
+  if (result === "ok") return tickPage(act.done);
+  if (result === "used") return already(act);
   if (result === "expired") return problem("This link has expired", 410);
   return problem("This link isn't valid");
 }
@@ -147,7 +172,7 @@ export default {
       try {
         const info = await rpc(env, "feedback_token_info", { p_nonce: claims.n });
         headline = info.headline || "";
-        if (info.status === "used") return already(act, headline);
+        if (info.status === "used") return already(act);
         if (info.status === "expired") return problem("This link has expired", 410);
         if (info.status !== "ok") return problem("This link isn't valid");
         if (isBrowserClick(request)) return await record(env, claims, act, headline);

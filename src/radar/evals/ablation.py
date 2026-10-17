@@ -48,8 +48,10 @@ def rankers(cfg: AppConfig, votes: Votes | None) -> list[tuple[str, Callable[[Ex
         def loo(e: Example) -> float:  # leave-one-out: an item's own vote never scores itself
             return score_vector(e.embedding, votes, k=k, exclude_id=e.item_id) if e.embedding else 0.0
 
-        for b in FEEDBACK_BLENDS:
-            out.append((f"+ your votes (blend {b})", lambda e, b=b: judge_rank(e, cfg) + b * loo(e)))
+        out.extend(
+            (f"+ your votes (blend {b})", lambda e, b=b: judge_rank(e, cfg) + b * loo(e))
+            for b in FEEDBACK_BLENDS
+        )
     return out
 
 
@@ -70,10 +72,11 @@ def run_ablation(examples: list[Example], cfg: AppConfig, votes: Votes | None = 
     labels = [e.label for e in pooled]
     rows = []
     for name, fn in rankers(cfg, votes):
-        per_day = []
-        for exs in days.values():
-            if len(exs) >= 5 and any(e.label for e in exs):
-                per_day.append(metrics.precision_at_k([fn(e) for e in exs], [e.label for e in exs], 5))
+        per_day = [
+            metrics.precision_at_k([fn(e) for e in exs], [e.label for e in exs], 5)
+            for exs in days.values()
+            if len(exs) >= 5 and any(e.label for e in exs)
+        ]
         scores = [fn(e) for e in pooled]
         rows.append(AblationRow(
             ranker=name,

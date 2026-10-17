@@ -15,6 +15,7 @@ import random
 import sys
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 
 from radar import db, tracing
 from radar.config import ROOT, AppConfig, get_env, load_config
@@ -210,8 +211,6 @@ def main() -> None:
         tracing.flush()
 
     report = render(r, config)
-    from pathlib import Path
-
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")

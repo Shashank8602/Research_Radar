@@ -12,12 +12,11 @@ NOW = datetime(2026, 10, 17, 12, tzinfo=UTC)
 
 
 def cand(i, *, title="t", source="arxiv", emb=None, rank=0.5, judged=True, rel=8.0, **kw):
-    c = Candidate(
+    return Candidate(
         id=str(i), url=f"https://x/{i}", title=title, source=source,
         embedding=list(emb if emb is not None else np.eye(4)[i % 4]),
         final_rank=rank, judged=judged, relevance=rel if judged else None, **kw,
     )
-    return c
 
 
 # ---- dedupe ----------------------------------------------------------------------------
@@ -226,7 +225,7 @@ def test_compose_renders_sections_and_degraded_banner():
 def test_compose_deepdive_button_alone_and_with_votes():
     c = cand(0, rank=1)
     c.section, c.position, c.summary, c.why_it_matters, c.headline = "core", 1, "S.", "W.", "H"
-    kw = dict(digest_date=date(2026, 10, 17), run_id="r1", degraded=False)
+    kw = {"digest_date": date(2026, 10, 17), "run_id": "r1", "degraded": False}
     only = compose.build_context([c], links=lambda _c: {"deepdive": "https://app.test/?t=abc"}, **kw)
     html, text = compose.render(only)
     assert "Explain in depth" in html and "https://app.test/?t=abc" in html

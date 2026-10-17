@@ -117,12 +117,12 @@ def test_item_jargon_explained_once_is_enough():
     assert plain.item_jargon(["Multi-agent setups help."]) == ["multi-agent"]
 
 
-def test_unexplained_jargon_respects_explanations_and_word_boundaries():
-    assert plain.unexplained_jargon("A new benchmark for agents") == ["benchmark"]
-    assert plain.unexplained_jargon("RAG (letting an AI look things up) helps") == []
-    assert plain.unexplained_jargon("letting an AI look things up (RAG) helps") == []
-    assert plain.unexplained_jargon("LiteLLM ships a release") == []  # not the word LLM
-    assert plain.unexplained_jargon("Tokens are cheap") == ["tokens"]
+def test_item_jargon_respects_explanations_and_word_boundaries():
+    assert plain.item_jargon(["A new benchmark for agents"]) == ["benchmark"]
+    assert plain.item_jargon(["RAG (letting an AI look things up) helps"]) == []
+    assert plain.item_jargon(["letting an AI look things up (RAG) helps"]) == []
+    assert plain.item_jargon(["LiteLLM ships a release"]) == []  # not the word LLM
+    assert plain.item_jargon(["Tokens are cheap"]) == ["tokens"]
 
 
 def test_plain_language_report():
@@ -155,9 +155,9 @@ class EditorRouter:
 
 
 def _entry(i, **kw):
-    base = dict(id=str(i), url="u", title=f"t{i}", source="arxiv", judged=True,
-                headline=f"Headline {i}", summary="A multi-agent framework.",
-                example="Imagine a help desk.", why_it_matters="Saves time.")
+    base = {"id": str(i), "url": "u", "title": f"t{i}", "source": "arxiv", "judged": True,
+            "headline": f"Headline {i}", "summary": "A multi-agent framework.",
+            "example": "Imagine a help desk.", "why_it_matters": "Saves time."}
     base.update(kw)
     return Candidate(**base)
 
@@ -197,8 +197,8 @@ def test_edit_digest_skips_entries_that_break_format_and_keeps_watchlist_example
 
 # ---- gate, report, model check -----------------------------------------------------------------
 def _result(**kw):
-    base = dict(examples=[], votes=0, ablation=[], calibration=[], judge_auc=None,
-                plain=quality.PlainLanguageReport(n_items=0, jargon_rate=None))
+    base = {"examples": [], "votes": 0, "ablation": [], "calibration": [], "judge_auc": None,
+            "plain": quality.PlainLanguageReport(n_items=0, jargon_rate=None)}
     base.update(kw)
     return cli.EvalResult(**base)
 

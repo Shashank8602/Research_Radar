@@ -123,8 +123,9 @@ def faithfulness(items: list[ReaderItem], *, router=None) -> FaithfulnessReport:
 
 
 # ---- variety between entries (D-043) -------------------------------------------------------------
-_STOP = set("the a an to of and in it that is for can on with its this by or as be are from they so their "
-            "when how what at you your if".split())
+_STOP = {"the", "a", "an", "to", "of", "and", "in", "it", "that", "is", "for", "can", "on", "with", "its",
+         "this", "by", "or", "as", "be", "are", "from", "they", "so", "their", "when", "how", "what", "at",
+         "you", "your", "if"}
 
 
 def load_recent_digests(conn: psycopg.Connection, n_runs: int = 5) -> list[list[ReaderItem]]:

@@ -12,7 +12,7 @@ import hmac
 import json
 import secrets
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import psycopg
 
@@ -79,11 +79,3 @@ def deepdive_link(item_id: str, run_id: str, *, base_url: str, secret: str) -> s
     reader can reopen a chat for a week (no row in `feedback_tokens`)."""
     token, _, _ = mint(item_id, run_id, "deepdive", secret, ttl_days=DEEPDIVE_TTL_DAYS)
     return f"{base_url.rstrip('/')}/?t={token}"
-
-
-def prune_expired(conn: psycopg.Connection) -> int:
-    cur = conn.execute(
-        "delete from feedback_tokens where expires_at < %s", (datetime.now(UTC) - timedelta(days=7),)
-    )
-    conn.commit()
-    return cur.rowcount

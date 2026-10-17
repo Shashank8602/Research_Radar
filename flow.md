@@ -136,7 +136,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    E[Email Deep-dive link<br/>signed token] --> A[HF Space app]
+    E[Email Deep-dive link<br/>signed token] --> A[Streamlit app]
     A -->|validate token + rate limit| G[LangGraph graph]
     G --> FT[Fetch full text<br/>arXiv HTML · PyMuPDF · trafilatura]
     FT --> IX[Throwaway index<br/>chunk + embed]
@@ -183,7 +183,7 @@ flowchart LR
 Environments:
 - **Local:** `.env`, dry runs, dev console.
 - **GitHub Actions:** secrets from repo settings (set via `gh`), scheduled daily run, CI.
-- **Hosted services:** Supabase (data), Langfuse (traces), Groq/Gemini/OpenRouter (LLMs), Gmail SMTP (email); later Cloudflare Worker and Hugging Face Spaces.
+- **Hosted services:** Supabase (data), Langfuse (traces), Groq/Gemini/OpenRouter (LLMs), Gmail SMTP (email); Cloudflare Worker (vote links) and Streamlit Community Cloud (deep dive).
 
 ---
 

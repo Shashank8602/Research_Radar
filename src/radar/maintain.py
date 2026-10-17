@@ -8,7 +8,8 @@ label. Everything else ages out in two steps, like a trash can:
   2. after `delete_after_days` -> delete the item and its scores.
 
 Also: test (dry) runs older than `dry_run_keep_days` lose their digests and the scores of unlabeled
-items, and feedback-link tokens are removed `token_grace_days` after they expire.
+items, feedback-link tokens are removed `token_grace_days` after they expire, and saved deep-dive chats
+are removed `chat_keep_days` after their last message.
 
     uv run radar-maintain            # apply
     uv run radar-maintain --preview  # show what would change, change nothing
@@ -115,7 +116,8 @@ def main() -> None:
     verb = "would" if r.preview else "did"
     print(f"[maintain] {verb}: slim {r.items_slimmed} items, delete {r.items_deleted} items, "
           f"clear {r.dry_run_digest_rows} test-digest rows and {r.dry_run_score_rows} test scores, "
-          f"delete {r.dry_run_runs_deleted} test runs and {r.tokens_deleted} expired link tokens. "
+          f"delete {r.dry_run_runs_deleted} test runs, {r.tokens_deleted} expired link tokens and "
+          f"{r.chats_deleted} old chats. "
           f"Database: {r.db_size_mb} MB.")
     if r.warning:
         print(f"[maintain] WARNING {r.warning}")

@@ -51,8 +51,12 @@ line-length = 100
 src = ["src", "tests", "devui"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["E501"]  # long prompt/SQL strings; line length is advisory
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RET", "PIE", "PERF", "RUF"]
+ignore = [
+    "E501",    # long prompt/SQL strings; line length is advisory
+    "RUF001", "RUF002", "RUF003",  # typographic dashes and quotes are deliberate in reader-facing text
+    "RUF012",  # pydantic/dataclass class attributes
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

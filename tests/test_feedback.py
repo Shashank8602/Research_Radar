@@ -63,3 +63,27 @@ def test_deepdive_link_lasts_a_week_votes_longer():
     assert feedback.verify(token, "s", now=now + 8 * 86400) is None
     vote, _, _ = feedback.mint("i", "r", "up", "s")
     assert feedback.verify(vote, "s", now=now + 20 * 86400) is not None
+
+
+def test_build_links_combines_vote_and_deepdive_links(monkeypatch):
+    from types import SimpleNamespace
+
+    from radar import pipeline
+    from radar.models import Candidate
+
+    c = Candidate(id="i1", url="https://x/1", title="t", source="arxiv")
+    monkeypatch.setattr(
+        pipeline.feedback, "create_links",
+        lambda conn, run_id, items, *, base_url, secret: {i.id: {"up": f"{base_url}/f/u"} for i in items},
+    )
+    env = SimpleNamespace(feedback_signing_secret="s", feedback_base_url="https://w.test",
+                          deepdive_base_url="https://app.test")
+    links = pipeline._build_links(None, "run1", [c], env)["i1"]
+    assert links["up"] == "https://w.test/f/u" and links["deepdive"].startswith("https://app.test/?t=")
+
+    env.feedback_base_url = None  # no vote Worker configured: the deep-dive button still works
+    assert set(pipeline._build_links(None, "run1", [c], env)["i1"]) == {"deepdive"}
+    env.deepdive_base_url = ""
+    assert pipeline._build_links(None, "run1", [c], env) == {"i1": {}}
+    env.feedback_signing_secret = None
+    assert pipeline._build_links(None, "run1", [c], env) is None

@@ -25,7 +25,7 @@ def build_topic_vectors(config: AppConfig) -> dict[str, np.ndarray]:
     """One unit vector per topic: mean of the description and any anchor texts."""
     out = {}
     for t in config.topics:
-        texts = [f"{t.description.strip()} Keywords: {', '.join(t.keywords)}"] + list(t.anchors)
+        texts = [f"{t.description.strip()} Keywords: {', '.join(t.keywords)}", *t.anchors]
         vecs = embed_texts(texts, config.models.embedding)
         mean = vecs.mean(axis=0)
         out[t.name] = mean / max(float(np.linalg.norm(mean)), 1e-12)

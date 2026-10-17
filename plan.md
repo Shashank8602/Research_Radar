@@ -12,7 +12,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 
 **Temporary dev console:** a local, read-only Streamlit app in `devui/` that lets me *see* each stage's output as it is built (see [Dev console](#dev-console-temporary-stage-by-stage-viewer)). It is scaffolding, not a product: nothing in `src/radar/` imports it, it is never deployed, and it is removed in Phase 4.
 
-**Primary stack:** Python 3.12 + `uv` · LiteLLM → **Groq (primary)**, Gemini and OpenRouter fallbacks · FastEmbed · Supabase (Postgres + pgvector) · Gmail SMTP (Resend adapter later) · GitHub Actions · Cloudflare Worker · LangGraph on HF Spaces · Langfuse · DeepEval.
+**Primary stack:** Python 3.11+ + `uv` · LiteLLM → **Groq (primary)**, Gemini and OpenRouter fallbacks · FastEmbed · Supabase (Postgres + pgvector) · Gmail SMTP (Resend adapter later) · GitHub Actions · Cloudflare Worker · LangGraph in a Streamlit app on Community Cloud · Langfuse (own eval code instead of DeepEval, D-040).
 
 ---
 
@@ -149,10 +149,10 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 - Optional tool `compare_saved(item)` over previously saved items.
 - **Safety:** read-only tools only; fetched text wrapped as untrusted data in the prompt; no tool can write, email or hit internal URLs; output length caps.
 
-### 3C. App on HF Spaces (`agent/app.py`)
-- FastAPI (+ minimal HTML/htmx) or Streamlit chat; decide at the start of this phase by how much UI polish I want.
+### 3C. App on Streamlit Community Cloud (`agent/app.py`)
+- Streamlit chat (chosen, D-045). Hugging Face Spaces needed PRO, so it deploys from GitHub to Community Cloud (D-049).
 - Validates the signed deep-dive token (same scheme as 2A), rate-limits per token and per IP, logs a `deepdive` feedback event.
-- Cold-start note in the email ("opens in ~30s"). Optional: a keep-warm ping.
+- Cold-start note in the email ("may take about 30 seconds to open the first time").
 
 ### 3D. Wire into the email
 - Deep-dive links in `compose.py` pointing at the Space with a signed token.
@@ -172,7 +172,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 ## Phase 4: Polish and portfolio (weekend 4-5)
 
 - **Watchlist section:** release feeds from `topics.yaml`, scored against topics, rendered as its own section (quota 2).
-- **Dashboard (Streamlit on HF Spaces):** weekly 👍-rate, per-section 👍-rate, cost per run, items per source, judge agreement trend. Read-only DB role.
+- **Dashboard (Streamlit on Community Cloud):** weekly 👍-rate, per-section 👍-rate, cost per run, items per source, judge agreement trend. Read-only DB role.
 - **Reliability pass:** "no digest by 10am" check (a second scheduled workflow that verifies today's `runs` row and emails an alert), degraded-mode banner in the email, quota/usage logging.
 - **README:** problem statement, architecture diagram, the precision@5 ablation table, a demo GIF/screenshots, cost per day, design decisions (including what was dropped and why), setup instructions.
 - **Remove the dev console:**

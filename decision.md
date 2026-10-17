@@ -51,6 +51,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-055 | 3 | Code cleanup: dead code removed, tracing and pipeline de-duplicated, stricter ruff rules, docs brought up to date | Accepted |
 | D-054 | 3 | Deep-dive chats are saved per item in Postgres, replayed into the model after a restart | Accepted |
 | D-053 | 3 | Vote result page: a tick and one message, tries to close its own tab after 2.5 s | Accepted |
 | D-052 | 3 | New GitHub repos with a README snippet, capped at 2 core picks, so repos join the papers | Accepted |
@@ -101,10 +102,10 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Why:** Keeps storage small, and also keeps us on the right side of source terms (summarize and link, don't copy).
 - **Rejected:** Persisting raw article text.
 
-### D-007: Deep-dive on Hugging Face Spaces; Worker for feedback only
+### D-007: Deep-dive on a free Python host; Worker for feedback only (host changed to Streamlit Community Cloud, D-049)
 - **Problem:** Where does the deep-dive page run?
-- **Decision:** A Python app (FastAPI or Streamlit) on HF Spaces serves the deep-dive. The Cloudflare Worker (JS) handles only the feedback confirm page and POST.
-- **Why:** The deep-dive needs Python libraries (PyMuPDF, trafilatura, FastEmbed) that Workers cannot run. The trade-off is a cold start of about 30 seconds after the Space sleeps; the email says so.
+- **Decision:** A Python app serves the deep-dive; the Cloudflare Worker (JS) handles only the feedback page and POST. *Amended: the app is Streamlit (D-045) on Streamlit Community Cloud, because Hugging Face now requires PRO (D-049).*
+- **Why:** The deep-dive needs Python libraries (PyMuPDF, trafilatura, FastEmbed) that Workers cannot run. The trade-off is a cold start of about 30 seconds after the app sleeps; the email says so.
 - **Rejected:** Deep-dive inside a Worker (no Python).
 
 ### D-008: Feedback links are signed, single-use and POST-confirmed (amended by D-047)
@@ -511,3 +512,21 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Verified:** live: first answer and a follow-up saved (3 messages); a new browser session showed all 3 in 6 s with the
   same first answer; 93 offline tests (replay only on an empty thread, no duplicates).
 - **Privacy:** transcripts hold only questions about public items; one reader, no per-user rows.
+
+### D-055: Code and docs cleanup pass
+- **Method:** vulture for unused code, ruff's SIM/C4/RET/PIE/PERF/RUF rules, a check that every config field is read, a
+  scan for markers and stray artifacts, and a read of every core module. Every vulture hit was checked by hand first
+  (pydantic fields and dynamic lookups looked unused but were not).
+- **Removed (dead):** `feedback.prune_expired` (`radar-maintain` does it), `tracing.is_enabled`, `RunSummary.n_candidates`
+  (set, never read), `plain.unexplained_jargon` (only a test used it), `cost_usd` in `db.finish_run` (never written).
+- **De-duplicated:** the three root-trace context managers in `tracing.py` share one `_root`; `pipeline._execute` computed
+  the final status twice and re-read the environment, now `_build_links` and a single status line; `smoke.py` used a
+  hand-rolled `__enter__`/`__exit__` and now uses `ExitStack`; stray function-level imports moved to the top.
+- **Added:** `radar-maintain` now reports the chat cleanup it already did; ruff now also enforces SIM, C4, RET, PIE, PERF
+  and RUF so these stay clean.
+- **Docs:** `research-radar.md`, `plan.md`, `flow.md` and D-007 still described Hugging Face Spaces, FastAPI and DeepEval;
+  they now say Streamlit Community Cloud and own eval code, and the finished checklist items are ticked.
+- **Verified:** 94 offline tests; a live dry run, then the Langfuse trace fetched back: one root, all stage spans, 4
+  generations with model and usage, no errors.
+- **Left alone on purpose:** the temporary dev console (`devui/`, removed in Phase 4) and the local, git-ignored
+  candidate pools (the Labeling page reads them).

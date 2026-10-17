@@ -19,10 +19,10 @@ A personal, daily AI-research digest for GenAI engineers. It collects new papers
 | Storage | **Supabase** (Postgres + pgvector). Neon is an equal alternative |
 | Scheduling | **GitHub Actions** cron |
 | Observability | **Langfuse** |
-| Evals | **DeepEval** (sampled) + own golden set |
+| Evals | Own golden set, offline ablation and LLM-checked faithfulness (own code, D-040) |
 | Feedback endpoint | **Cloudflare Worker** (JS, feedback only) |
-| Deep-dive host | **FastAPI or Streamlit app on Hugging Face Spaces** (Python needed for PyMuPDF/trafilatura; Workers can't run it) |
-| Dashboard | **Streamlit** on Hugging Face Spaces |
+| Deep-dive host | **Streamlit app on Streamlit Community Cloud** (Python needed for PyMuPDF/trafilatura; Workers can't run it; Hugging Face now needs PRO for this, D-049) |
+| Dashboard | **Streamlit** on Streamlit Community Cloud |
 
 **Design principle:** the daily batch is a *deterministic pipeline*, not an agent. Agents are used only where reasoning is needed (deep-dive chat). Where SQL can do the job (dedupe, vector search, novelty check), use SQL.
 
@@ -57,7 +57,7 @@ Collect → Dedupe → Cheap filter → LLM judge → Diversify → Compose → 
    👍 / 👎 link ──► Cloudflare Worker (confirm page, POST) ──► Supabase (feedback)
                                                   │
                                     interest score / ranking blend
-   Deep dive link ──► HF Space (signed token) ──► LangGraph agent ──► grounded answer + citations
+   Deep dive link ──► Streamlit app (signed token) ──► LangGraph agent ──► grounded answer + citations
 ```
 
 ```mermaid
@@ -74,7 +74,7 @@ flowchart LR
     J --> K[(Supabase)]
     K --> D
     H --> L[Deep-dive link]
-    L --> M[LangGraph agent on HF Space]
+    L --> M[LangGraph agent in the Streamlit app]
     M --> K
 ```
 
@@ -114,16 +114,16 @@ Include **1 exploration slot** per digest (an item slightly outside my usual pro
 
 ### Deep-dive agent (LangGraph)
 
-1. Link opens a small web page on the HF Space; the token is validated before anything runs.
+1. Link opens the Streamlit app; the signed token is validated before anything runs.
 2. Agent fetches the full text (arXiv HTML or PyMuPDF for papers; Jina Reader / `trafilatura` for web pages).
 3. Builds a throwaway index, answers with citations.
-4. Keeps per-item state (checkpoints) so follow-ups like "how does this compare to X?" work. This is the part that justifies LangGraph; the first answer is a plain linear RAG chain.
+4. Keeps per-item state (an in-memory graph thread plus a saved transcript in Postgres, D-054) so follow-ups like "how does this compare to X?" work. This is the part that justifies LangGraph; the first answer is a plain linear RAG chain.
 5. Optional tool: compare against my previously saved items.
 
 **Safety:**
 - Fetched content is untrusted (prompt injection). The agent gets **read-only tools only**, no writes, no email, no DB mutation beyond its own checkpoints.
-- The public endpoint is gated by the signed token and **rate-limited**, otherwise anyone with the URL can burn the free quota.
-- HF Spaces sleep, so the first click can take ~30s. The email says so.
+- The public endpoint is gated by the signed token (7-day expiry) and **rate-limited** per item, otherwise anyone with the URL could burn the free quota.
+- Community Cloud apps sleep after about 12 idle hours, so the first click can take ~30s. The email says so.
 
 ---
 
@@ -280,7 +280,7 @@ Langfuse traces every run: cost and latency per stage.
 - **GitHub Actions is ephemeral**: the DB can't live in the runner. Use Supabase/Neon as the single store.
 - **Scheduled workflows can fire late**, and GitHub disables them on public repos after ~60 days of inactivity. Add a keep-alive commit or monitor. The idempotent `runs` guard makes late/duplicate fires harmless.
 - **Supabase free projects pause after inactivity** and cap the DB at ~500MB. A daily job keeps it alive; don't store full text. Verify current terms.
-- **HF Spaces sleep** when idle: cold start on the first Deep-dive click.
+- **Free app hosting sleeps** when idle (Streamlit Community Cloud, ~12 h): cold start on the first Deep-dive click. Hugging Face Spaces would need PRO, and free hosts have ~0.5-1 GB of memory (the app was cut from 2.4 GB to 0.56 GB, D-049).
 - **Free-tier data policies:** Gemini's free tier may use prompts for product improvement, and other free tiers have their own terms. Fine for public articles; never send private notes through any of them. Verify current terms.
 - **Groq limits:** free tier is tight on tokens per minute/day for larger models, so the judge batches (5-10 items) must be sized to fit, with retry/backoff on 429. Check JSON-mode/structured-output support for the chosen model.
 - **Rate limits:** LiteLLM fallbacks (Groq → Gemini → OpenRouter free) keep a daily run from dying on a 429. Model deprecations are the other risk, hence pinned IDs and a CI smoke test.
@@ -293,34 +293,34 @@ Langfuse traces every run: cost and latency per stage.
 ## 8. Build plan (solo)
 
 ### Phase 0: Foundations (1-2 evenings)
-- [ ] Repo with `uv`, `topics.yaml`, Supabase project + tables (`items`, `runs`, `feedback`, ...)
-- [ ] LiteLLM wired to Groq with Gemini/OpenRouter fallbacks, models pinned
-- [ ] Langfuse tracing on from day one
-- [ ] Pick 5-10 anchor items per topic
+- [x] Repo with `uv`, `topics.yaml`, Supabase project + tables (`items`, `runs`, `feedback`, ...)
+- [x] LiteLLM wired to Groq with Gemini/OpenRouter fallbacks, models pinned
+- [x] Langfuse tracing on from day one
+- [x] Pick 5-10 anchor items per topic
 
 ### Phase 1: Digest MVP + start labeling (weekend 1)
-- [ ] Collect from arXiv (keyword-prefiltered), HF Daily Papers, HN, blog RSS
-- [ ] Dedupe → FastEmbed → hybrid cheap filter (SQL)
-- [ ] Judge (typed scores + rationales), 5-10 items per call, for top ~30
-- [ ] Plain HTML email via Gmail SMTP, triggered by GitHub Actions cron, with idempotent `runs` guard
-- [ ] Start labeling the golden set from each day's candidates
+- [x] Collect from arXiv (keyword-prefiltered), HF Daily Papers, HN, blog RSS
+- [x] Dedupe → FastEmbed → hybrid cheap filter (SQL)
+- [x] Judge (typed scores + rationales), 5-10 items per call, for top ~30
+- [x] Plain HTML email via Gmail SMTP, triggered by GitHub Actions cron, with idempotent `runs` guard
+- [x] Start labeling the golden set from each day's candidates
 - **Done when:** a digest lands in my inbox every morning with no manual steps.
 
 ### Phase 2: Feedback and evals (weekend 2, may spill into a third)
-- [ ] 👍/👎 links → Cloudflare Worker (confirm-click POST page, HMAC token + nonce) → Supabase
-- [ ] Finish golden set (~200-300 items)
-- [ ] Ablation script + sampled DeepEval check
+- [x] 👍/👎 links → Cloudflare Worker (confirm-click POST page, HMAC token + nonce) → Supabase
+- [ ] Finish golden set (~200-300 items): labeling in progress
+- [x] Ablation script + sampled DeepEval check
 - **Done when:** I can show a precision@5 table.
 
 ### Phase 3: Deep dive (weekend 3-4)
-- [ ] LangGraph agent: fetch → throwaway index → cited answer, read-only tools
-- [ ] Small web app on HF Spaces behind the email's Deep-dive link, token-gated and rate-limited, with follow-up chat
+- [x] LangGraph agent: fetch → throwaway index → cited answer, read-only tools
+- [x] Streamlit app behind the email's Deep-dive link (Community Cloud), token-gated and rate-limited, with follow-up chat and saved history
 - **Done when:** clicking Deep dive on any item gives a grounded summary and working follow-ups.
 
 ### Phase 4: Polish
 - [ ] README with architecture diagram, ablation table and a short demo GIF (matters more for the portfolio than the dashboard)
-- [ ] Release-feed watchlist section
-- [ ] Streamlit dashboard on HF Spaces (👍-rate over time, per-section)
+- [x] Release-feed watchlist section
+- [ ] Streamlit dashboard on Community Cloud (👍-rate over time, per-section)
 
 ### Phase 5 (stretch, only after the core is stable)
 Tavily gap-filling · per-topic feedback centroids (if ablation justifies) · Mem0 for stated interests · MCP server (`get_digest`, `search_radar`, `get_trends`) · Graphiti concept-over-time graph · Obsidian export of saved items · WhatsApp adapter (official Cloud API only; mind the 24-hour window and template rules).
@@ -352,10 +352,7 @@ research-radar/
 │   ├── deliver/            # email.py (WhatsApp adapter later)
 │   ├── db.py               # Supabase client
 │   └── pipeline.py         # orchestrates the stages, owns the runs lock
-├── agent/                  # LangGraph deep-dive + FastAPI/Streamlit app for HF Spaces
-│   ├── graph.py
-│   ├── tools.py
-│   └── app.py
+├── agent/app.py            # Streamlit deep-dive page (logic lives in src/radar/agent/: tools, index, graph, store)
 ├── worker/                 # Cloudflare Worker (JS): feedback confirm page + POST
 ├── dashboard/              # Streamlit app
 ├── evals/
@@ -388,7 +385,7 @@ Funnel-style retrieval (cheap hybrid filter → LLM judge) · LLM-as-judge with 
 - **FastEmbed**: lightweight CPU embeddings, so no hosted embedding cost.
 - **Langfuse**: observability (traces, cost, latency). **DeepEval**: pytest-style LLM tests. **RAGAS**: RAG-specific metrics (overlaps with DeepEval; pick one).
 - **Cloudflare Workers**: tiny always-available JS functions behind a URL (free tier); used here for feedback links only.
-- **Hugging Face Spaces**: free Python app hosting (sleeps when idle); hosts the deep-dive app and dashboard.
+- **Streamlit Community Cloud**: free Python app hosting from a GitHub repo (sleeps when idle); hosts the deep-dive app and the dashboard. (Hugging Face Spaces now requires PRO for Docker/Gradio apps.)
 - **Mem0**: memory layer for AI apps (extracts and stores facts about the user). **Obsidian** is a notes app, not AI memory; they connect via MCP.
 - **Graphiti**: temporal knowledge-graph library for agents (stretch only).
 - **Docling**: layout-aware PDF → markdown; dropped from this stack (needed more for multilingual document RAG).
@@ -398,10 +395,10 @@ Funnel-style retrieval (cheap hybrid filter → LLM judge) · LLM-as-judge with 
 
 ## 12. Open items
 
-- [ ] Seed sources per topic (arXiv categories + keyword prefilters, HN queries, blog/RSS feeds, GitHub topics) and anchor items
+- [x] Seed sources per topic (arXiv categories + keyword prefilters, HN queries, blog/RSS feeds, GitHub repo searches) and anchor items
 - [x] Email provider: Gmail SMTP first (prefer a dedicated Gmail account); Resend adapter if I buy a domain
-- [ ] Choose Supabase vs. Neon
-- [ ] Choose FastAPI vs. Streamlit for the deep-dive app (hosting decided: HF Spaces)
-- [ ] Pick the pinned model IDs for judge and fallbacks
-- [ ] Decide the "no digest" alerting mechanism
-- [ ] Verify current free-tier quotas: Groq, Gemini, OpenRouter, Supabase, GitHub Actions, HF Spaces (and Resend if adopted)
+- [x] Choose Supabase vs. Neon: Supabase
+- [x] Choose FastAPI vs. Streamlit for the deep-dive app: Streamlit on Community Cloud (D-045, D-049)
+- [x] Pick the pinned model IDs for judge and fallbacks
+- [x] Decide the "no digest" alerting mechanism: the GitHub Actions failure email
+- [ ] Verify current free-tier quotas: Groq, Gemini, OpenRouter, Supabase, GitHub Actions, Streamlit Community Cloud (and Resend if adopted); Hugging Face Spaces turned out to need PRO

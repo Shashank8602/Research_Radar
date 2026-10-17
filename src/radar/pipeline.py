@@ -31,7 +31,6 @@ class RunSummary(BaseModel):
     run_id: str | None
     status: str
     n_collected: int = 0
-    n_candidates: int = 0
     n_filtered: int = 0
     n_unjudged: int = 0
     n_sent: int = 0
@@ -147,7 +146,6 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
         kept, n_dup = dedupe.cluster_filter(fresh, config.dedupe.similarity_threshold)
         kept_ids = {c.id for c in kept}
         dedupe.mark_clusters(conn, kept, [c for c in fresh if c.id not in kept_ids])
-        summary.n_candidates = len(kept)
         span.update(
             output={"unique": len(cands), "already_sent": len(cands) - len(fresh),
                     "near_duplicates": n_dup, "candidates": len(kept)},
@@ -206,25 +204,13 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
               f"reading grade {rep['grade_before']} -> {rep['grade_after']}; "
               f"jargon flagged {len(flagged)} -> {len(left)}")
 
-    judge_model = config.models.judge
-    _persist_scores(conn, run_id, top, judge_model)
+    _persist_scores(conn, run_id, top, config.models.judge)
     _persist_digest(conn, run_id, chosen)
     _dump_pool(run_id, digest_date, top, {c.id for c in chosen})
 
     # 6. compose + send
     env = get_env()
-    link_map: dict[str, dict[str, str]] | None = None
-    if send_email and chosen and env.feedback_signing_secret:
-        link_map = {c.id: {} for c in chosen}
-        if env.feedback_base_url:
-            link_map = feedback.create_links(
-                conn, run_id, chosen, base_url=env.feedback_base_url, secret=env.feedback_signing_secret
-            )
-        if env.deepdive_base_url:
-            for c in chosen:
-                link_map[c.id]["deepdive"] = feedback.deepdive_link(
-                    c.id, run_id, base_url=env.deepdive_base_url, secret=env.feedback_signing_secret
-                )
+    link_map = _build_links(conn, run_id, chosen, env) if send_email and chosen else None
     with tracing.stage_span("compose-digest", input={"items": len(chosen), "degraded": degraded}) as span:
         ctx = compose.build_context(
             chosen, digest_date=digest_date, run_id=run_id, degraded=degraded,
@@ -234,20 +220,34 @@ def _execute(conn, config, summary, run_id, digest_date, dry_run, send_email, no
         html, text = compose.render(ctx)
         span.update(output={"items": len(chosen), "html_chars": len(html)})
     summary.n_sent = len(chosen)
+    summary.status = "dry-run" if dry_run else ("degraded" if degraded else "sent")
 
     if send_email and chosen:
         with tracing.stage_span("send-email", input={"subject_items": len(chosen)}) as span:
             mail.send(compose.subject(digest_date, len(chosen), degraded), html, text=text)
-            span.update(output={"sent": True, "to": get_env().email_to})
-            print(f"[send] emailed {get_env().email_to}")
-        summary.status = "dry-run" if dry_run else ("degraded" if degraded else "sent")
+            span.update(output={"sent": True, "to": env.email_to})
+            print(f"[send] emailed {env.email_to}")
+    elif not send_email:
+        print("[send] skipped (dry run)")
     else:
-        summary.status = "dry-run" if dry_run else ("degraded" if degraded else "sent")
-        if not send_email:
-            print("[send] skipped (dry run)")
-        else:
-            notes.append("nothing cleared the bar; no email sent")
-            print("[send] nothing to send")
+        notes.append("nothing cleared the bar; no email sent")
+        print("[send] nothing to send")
+
+
+def _build_links(conn, run_id: str, chosen: list[Candidate], env) -> dict[str, dict[str, str]] | None:
+    """Per-item email links: the vote buttons and/or the deep-dive button, whichever are configured."""
+    secret = env.feedback_signing_secret
+    if not secret:
+        return None
+    links = {c.id: {} for c in chosen}
+    if env.feedback_base_url:
+        links = feedback.create_links(conn, run_id, chosen, base_url=env.feedback_base_url, secret=secret)
+    if env.deepdive_base_url:
+        for c in chosen:
+            links[c.id]["deepdive"] = feedback.deepdive_link(
+                c.id, run_id, base_url=env.deepdive_base_url, secret=secret
+            )
+    return links
 
 
 def main() -> None:

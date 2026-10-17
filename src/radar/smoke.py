@@ -6,6 +6,7 @@ Usage: uv run radar-smoke [--no-email] [--no-db] [--no-llm]
 from __future__ import annotations
 
 import argparse
+import contextlib
 from datetime import date
 
 from pydantic import BaseModel
@@ -51,35 +52,32 @@ def main() -> None:
     ap.add_argument("--no-llm", action="store_true")
     args = ap.parse_args()
 
-    env = get_env()
-    print(f"[tracing] langfuse {'on' if tracing.init(env) else 'off (no keys)'}")
+    print(f"[tracing] langfuse {'on' if tracing.init(get_env()) else 'off (no keys)'}")
 
-    conn_cm, conn, run_id = None, None, None
-    if not args.no_db:
-        conn_cm = db.connect()
-        conn = conn_cm.__enter__()
-        applied = db.migrate(conn)
-        print(f"[db] migrations applied: {applied or 'none (up to date)'}")
-        run_id = db.start_run(conn, date.today(), is_dry_run=True)
-        print(f"[db] smoke run row: {run_id}")
+    with contextlib.ExitStack() as stack:
+        conn, run_id = None, None
+        if not args.no_db:
+            conn = stack.enter_context(db.connect())
+            print(f"[db] migrations applied: {db.migrate(conn) or 'none (up to date)'}")
+            run_id = db.start_run(conn, date.today(), is_dry_run=True)
+            print(f"[db] smoke run row: {run_id}")
 
-    status, notes, trace_id = "sent", None, None
-    try:
-        with tracing.run_trace(run_id, date.today().isoformat(), dry_run=True) as trace_id:
-            if not args.no_llm:
-                _llm_step()
-            if not args.no_email:
-                _email_step()
-            tracing.update_stage(output={"status": "ok"})
-        print(f"[tracing] trace id: {trace_id}")
-    except Exception as e:
-        status, notes = "failed", str(e)[:500]
-        raise
-    finally:
-        tracing.flush()
-        if conn_cm is not None:
-            db.finish_run(conn, run_id, status, notes, langfuse_trace_id=trace_id)
-            conn_cm.__exit__(None, None, None)
+        status, notes, trace_id = "sent", None, None
+        try:
+            with tracing.run_trace(run_id, date.today().isoformat(), dry_run=True) as trace_id:
+                if not args.no_llm:
+                    _llm_step()
+                if not args.no_email:
+                    _email_step()
+                tracing.update_stage(output={"status": "ok"})
+            print(f"[tracing] trace id: {trace_id}")
+        except Exception as e:
+            status, notes = "failed", str(e)[:500]
+            raise
+        finally:
+            tracing.flush()
+            if conn is not None:
+                db.finish_run(conn, run_id, status, notes, langfuse_trace_id=trace_id)
 
 
 if __name__ == "__main__":

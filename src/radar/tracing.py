@@ -69,14 +69,29 @@ def init(env: Env | None = None) -> bool:
     return True
 
 
-def is_enabled() -> bool:
-    return _enabled
-
-
 def _client():
     from langfuse import get_client
 
     return get_client()
+
+
+@contextmanager
+def _root(name: str, *, input: Any, observation_metadata: dict | None = None, **trace_attrs: Any):
+    """Root observation plus trace attributes. Yields (root span, trace id)."""
+    from langfuse import propagate_attributes
+
+    lf = _client()
+    with (
+        lf.start_as_current_observation(
+            as_type="span", name=name, input=input, metadata=observation_metadata
+        ) as root,
+        propagate_attributes(trace_name=name, **trace_attrs),
+    ):
+        try:
+            yield root, lf.get_current_trace_id()
+        except Exception as e:
+            root.update(level="ERROR", status_message=str(e)[:300])
+            raise
 
 
 @contextmanager
@@ -85,28 +100,15 @@ def run_trace(run_id: str | None, digest_date: str, dry_run: bool) -> Iterator[s
     if not _enabled:
         yield None
         return
-    from langfuse import propagate_attributes
-
-    lf = _client()
-    tags = ["digest", "dry-run" if dry_run else "scheduled"]
-    with lf.start_as_current_observation(
-        as_type="span",
-        name="radar-digest-run",
+    with _root(
+        "radar-digest-run",
         input={"digest_date": digest_date, "dry_run": dry_run},
-        metadata={"run_id": run_id},
-    ) as root:
-        with propagate_attributes(
-            trace_name="radar-digest-run",
-            session_id=f"digest-{digest_date}",
-            tags=tags,
-            metadata={"run_id": str(run_id), "dry_run": str(dry_run).lower()},
-        ):
-            trace_id = lf.get_current_trace_id()
-            try:
-                yield trace_id
-            except Exception as e:
-                root.update(level="ERROR", status_message=str(e)[:300])
-                raise
+        observation_metadata={"run_id": run_id},
+        session_id=f"digest-{digest_date}",
+        tags=["digest", "dry-run" if dry_run else "scheduled"],
+        metadata={"run_id": str(run_id), "dry_run": str(dry_run).lower()},
+    ) as (_, trace_id):
+        yield trace_id
 
 
 @contextmanager
@@ -115,20 +117,13 @@ def deepdive_trace(item_id: str, question: str | None) -> Iterator[Any]:
     if not _enabled:
         yield _NoopSpan()
         return
-    from langfuse import propagate_attributes
-
-    with _client().start_as_current_observation(
-        as_type="span", name="radar-deep-dive-turn",
+    with _root(
+        "radar-deep-dive-turn",
         input={"item_id": item_id, "question": (question or "")[:200], "first_turn": not question},
-    ) as root:
-        with propagate_attributes(
-            trace_name="radar-deep-dive-turn", session_id=f"deepdive-{item_id}", tags=["deepdive"]
-        ):
-            try:
-                yield root
-            except Exception as e:
-                root.update(level="ERROR", status_message=str(e)[:300])
-                raise
+        session_id=f"deepdive-{item_id}",
+        tags=["deepdive"],
+    ) as (root, _):
+        yield root
 
 
 @contextmanager
@@ -138,16 +133,8 @@ def eval_trace(input: dict[str, Any]) -> Iterator[Any]:
     if not _enabled:
         yield _NoopSpan()
         return
-    from langfuse import propagate_attributes
-
-    lf = _client()
-    with lf.start_as_current_observation(as_type="span", name="radar-eval", input=input) as root:
-        with propagate_attributes(trace_name="radar-eval", tags=["eval"]):
-            try:
-                yield root
-            except Exception as e:
-                root.update(level="ERROR", status_message=str(e)[:300])
-                raise
+    with _root("radar-eval", input=input, tags=["eval"]) as (root, _):
+        yield root
 
 
 class _NoopSpan:

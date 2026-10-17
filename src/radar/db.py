@@ -68,7 +68,7 @@ def start_run(conn: psycopg.Connection, digest_date: date, is_dry_run: bool = Fa
 def finish_run(
     conn: psycopg.Connection, run_id: str, status: str, notes: str | None = None, **counts
 ) -> None:
-    allowed = {"n_collected", "n_filtered", "n_sent", "cost_usd", "langfuse_trace_id"}
+    allowed = {"n_collected", "n_filtered", "n_sent", "langfuse_trace_id"}
     extra = {k: v for k, v in counts.items() if k in allowed}
     sets = [
         "status = %s",

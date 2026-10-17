@@ -8,6 +8,7 @@ The README excerpt is what the judge and the deep dive read, not just the one-li
 
 from __future__ import annotations
 
+import contextlib
 import re
 import time
 from datetime import UTC, datetime, timedelta
@@ -135,10 +136,8 @@ def fetch(
         top = sorted(found.values(), key=lambda rq: -rq[0].get("stargazers_count", 0))[:max_repos]
         readmes = {}
         for repo, _ in top:
-            try:
+            with contextlib.suppress(httpx.HTTPError):  # the description alone still works
                 readmes[repo["full_name"]] = _readme(client, repo["full_name"], readme_chars)
-            except httpx.HTTPError:
-                pass  # description alone still works
         missing = sum(1 for repo, _ in top if not readmes.get(repo["full_name"]))
         if missing:
             print(f"[github] no README text for {missing}/{len(top)} repos (rate limit? set GITHUB_TOKEN)")

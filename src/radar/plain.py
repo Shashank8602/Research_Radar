@@ -80,11 +80,6 @@ def item_jargon(fields: list[str]) -> list[str]:
     return flagged
 
 
-def unexplained_jargon(text: str) -> list[str]:
-    """Single-text version of `item_jargon`."""
-    return item_jargon([text])
-
-
 # ---- reading level ------------------------------------------------------------------------------
 def _syllables(word: str) -> int:
     w = re.sub(r"[^a-z]", "", word.lower())

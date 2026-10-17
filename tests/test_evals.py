@@ -205,12 +205,25 @@ def _result(**kw):
 
 def test_gate_skips_ranking_without_labels_but_checks_jargon_and_models():
     cfg = load_config()
-    r = _result(plain=quality.PlainLanguageReport(n_items=10, jargon_rate=0.9),
+    r = _result(plain=quality.PlainLanguageReport(n_items=40, jargon_rate=0.9),
                 models=[models_check.ModelStatus("groq/x", False, "NOT FOUND")])
     cli.apply_gate(r, cfg)
-    assert "skipped" in r.gate_skipped_reason
+    assert "skipped" in r.gate_skipped_reason and r.text_gate_skipped_reason is None
     assert any("jargon" in f for f in r.gate_failures) and any("groq/x" in f for f in r.gate_failures)
     assert "No labels yet" in cli.render(r, cfg)
+
+
+def test_writing_gate_waits_for_enough_real_entries():
+    cfg = load_config()
+    thin = _result(plain=quality.PlainLanguageReport(
+        n_items=cfg.evals.min_items_for_text_gate - 1, jargon_rate=0.9, reading_grade=15.0))
+    cli.apply_gate(thin, cfg)
+    assert not thin.gate_failures and "writing gate skipped" in thin.text_gate_skipped_reason
+    assert "writing gate skipped" in cli.render(thin, cfg)
+    enough = _result(plain=quality.PlainLanguageReport(
+        n_items=cfg.evals.min_items_for_text_gate, jargon_rate=0.9, reading_grade=15.0))
+    cli.apply_gate(enough, cfg)
+    assert any("jargon" in f for f in enough.gate_failures) and any("reading grade" in f for f in enough.gate_failures)
 
 
 def test_check_models_flags_missing_ids(monkeypatch):

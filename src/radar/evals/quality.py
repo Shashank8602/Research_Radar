@@ -24,6 +24,8 @@ class ReaderItem:
 
 
 def load_recent_digest_items(conn: psycopg.Connection, n_runs: int = 10) -> list[ReaderItem]:
+    """Entries of the last n REAL digests. Test runs are excluded: they come from whatever prompt was
+    being tried that day, so they would make the gate flap."""
     rows = conn.execute(
         """
         select distinct on (d.item_id) i.title, coalesce(i.snippet, '') as snippet,
@@ -31,7 +33,8 @@ def load_recent_digest_items(conn: psycopg.Connection, n_runs: int = 10) -> list
         from digests d
         join item_scores s on s.run_id = d.run_id and s.item_id = d.item_id
         join items i on i.id = d.item_id
-        where d.run_id in (select id from runs where n_sent > 0 order by started_at desc limit %s)
+        where d.run_id in (
+          select id from runs where n_sent > 0 and not is_dry_run order by started_at desc limit %s)
           and s.judge_model is not null and s.headline is not null
         order by d.item_id
         """,
@@ -131,7 +134,7 @@ _STOP = {"the", "a", "an", "to", "of", "and", "in", "it", "that", "is", "for", "
 def load_recent_digests(conn: psycopg.Connection, n_runs: int = 5) -> list[list[ReaderItem]]:
     """The entries of each of the last n digests (one list per run), for cross-entry checks."""
     runs = conn.execute(
-        "select r.id from runs r where r.n_sent > 0 and exists (select 1 from item_scores s "
+        "select r.id from runs r where r.n_sent > 0 and not r.is_dry_run and exists (select 1 from item_scores s "
         "where s.run_id = r.id and s.headline is not null) order by r.started_at desc limit %s",
         (n_runs,),
     ).fetchall()

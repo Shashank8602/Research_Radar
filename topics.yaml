@@ -41,10 +41,13 @@ retention:                 # storage clean-up by `radar-maintain` (D-044); diges
 evals:                     # thresholds for `radar-eval --gate` (D-042)
   min_labels_for_gate: 100
   min_precision_at_5: 0.5
+  min_items_for_text_gate: 15  # real digest entries needed before the writing checks can fail CI
   max_jargon_rate: 0.35
   max_reading_grade: 11      # Flesch-Kincaid grade; ~8 easy, 12 end of high school
   min_faithfulness: 0.85
   max_sameness_gap: 0.03     # writing must not make entries more alike than their sources (D-043)
+
+timezone: Asia/Kolkata      # digests are dated by this local day (the run is at 03:30 IST = 22:00 UTC the day before)
 
 digest:
   sections:

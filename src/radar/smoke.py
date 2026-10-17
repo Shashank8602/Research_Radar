@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-from datetime import date
 
 from pydantic import BaseModel
 
 from radar import db, llm, tracing
-from radar.config import get_env
+from radar.config import get_env, load_config, local_today
 from radar.deliver import email as mail
 
 
@@ -52,6 +51,7 @@ def main() -> None:
     ap.add_argument("--no-llm", action="store_true")
     args = ap.parse_args()
 
+    today = local_today(load_config().timezone)
     print(f"[tracing] langfuse {'on' if tracing.init(get_env()) else 'off (no keys)'}")
 
     with contextlib.ExitStack() as stack:
@@ -59,12 +59,12 @@ def main() -> None:
         if not args.no_db:
             conn = stack.enter_context(db.connect())
             print(f"[db] migrations applied: {db.migrate(conn) or 'none (up to date)'}")
-            run_id = db.start_run(conn, date.today(), is_dry_run=True)
+            run_id = db.start_run(conn, today, is_dry_run=True)
             print(f"[db] smoke run row: {run_id}")
 
         status, notes, trace_id = "sent", None, None
         try:
-            with tracing.run_trace(run_id, date.today().isoformat(), dry_run=True) as trace_id:
+            with tracing.run_trace(run_id, today.isoformat(), dry_run=True) as trace_id:
                 if not args.no_llm:
                     _llm_step()
                 if not args.no_email:

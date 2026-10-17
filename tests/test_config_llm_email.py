@@ -75,3 +75,17 @@ def test_email_unknown_backend(monkeypatch):
 def test_email_message_has_html_alternative():
     msg = mail._build_message("s", "<p>hi</p>", "a@b.c", "d@e.f", None)
     assert msg.get_body(preferencelist=("html",)).get_content().strip() == "<p>hi</p>"
+
+
+def test_digest_date_follows_the_readers_timezone_not_the_runners():
+    from datetime import UTC, date, datetime
+
+    from radar.config import load_config, local_today
+
+    tz = load_config().timezone
+    assert tz == "Asia/Kolkata"
+    # The scheduled run (22:00 UTC) is already the next morning in India, so it is tomorrow's digest.
+    assert local_today(tz, datetime(2026, 10, 17, 22, 0, tzinfo=UTC)) == date(2026, 10, 18)
+    # The 07:58 UTC run earlier that day (13:28 IST) is still the 17th: no collision with the 22:00 one.
+    assert local_today(tz, datetime(2026, 10, 17, 7, 58, tzinfo=UTC)) == date(2026, 10, 17)
+    assert local_today("UTC", datetime(2026, 10, 17, 22, 0, tzinfo=UTC)) == date(2026, 10, 17)

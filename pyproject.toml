@@ -20,6 +20,7 @@ dependencies = [
     "langgraph>=1.2.16",
     "trafilatura>=2.3.1",
     "pymupdf>=1.28.2",
+    "tzdata>=2026.5",
 ]
 
 [dependency-groups]
@@ -38,6 +39,7 @@ radar-smoke = "radar.smoke:main"
 radar-run = "radar.pipeline:main"
 radar-eval = "radar.evals.cli:main"
 radar-maintain = "radar.maintain:main"
+radar-check = "radar.health:main"
 
 [build-system]
 requires = ["hatchling"]

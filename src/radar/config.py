@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import yaml
 from pydantic import BaseModel, Field
@@ -167,6 +169,7 @@ class EvalConfig(BaseModel):
 
     min_labels_for_gate: int = 100
     min_precision_at_5: float = 0.5
+    min_items_for_text_gate: int = 15  # writing checks need this many real entries to mean anything
     max_jargon_rate: float = 0.35
     max_reading_grade: float = 11.0  # Flesch-Kincaid grade of digest entries
     min_faithfulness: float = 0.85
@@ -174,6 +177,7 @@ class EvalConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
+    timezone: str = "Asia/Kolkata"  # a digest is dated by the reader's local day, not the runner's UTC day
     models: ModelsConfig
     filter: FilterConfig = Field(default_factory=FilterConfig)
     dedupe: DedupeConfig = Field(default_factory=DedupeConfig)
@@ -186,6 +190,11 @@ class AppConfig(BaseModel):
     topics: list[Topic]
     global_sources: GlobalSources = Field(default_factory=GlobalSources)
     watchlist: list[WatchlistEntry] = Field(default_factory=list)
+
+
+def local_today(tz: str = "Asia/Kolkata", now: datetime | None = None) -> date:
+    """Today's date in the reader's timezone. A run at 22:00 UTC is already tomorrow's digest in IST."""
+    return (now or datetime.now(UTC)).astimezone(ZoneInfo(tz)).date()
 
 
 @lru_cache

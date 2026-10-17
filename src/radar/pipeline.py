@@ -22,7 +22,7 @@ from radar import diversify as diversify_stage
 from radar import filter as filter_stage
 from radar import judge as judge_stage
 from radar.collect import collect_all
-from radar.config import ROOT, get_env, load_config
+from radar.config import ROOT, get_env, load_config, local_today
 from radar.deliver import email as mail
 from radar.models import Candidate
 
@@ -82,7 +82,7 @@ def run(
 ) -> RunSummary:
     config = load_config()
     env = get_env()
-    digest_date = digest_date or date.today()
+    digest_date = digest_date or local_today(config.timezone)
     send_email = (not dry_run) if send_email is None else send_email
     if top_n:
         config.filter.top_n = top_n

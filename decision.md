@@ -51,6 +51,9 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-058 | 4 | Digests are dated in the reader's timezone (IST), not the runner's UTC day | Accepted |
+| D-057 | 4 | Missed-digest alarm: a second workflow checks for a real, sent digest and emails an alert | Accepted |
+| D-056 | 4 | Eval gate reads real digests only and waits for 15 entries before the writing checks can fail | Accepted |
 | D-055 | 3 | Code cleanup: dead code removed, tracing and pipeline de-duplicated, stricter ruff rules, docs brought up to date | Accepted |
 | D-054 | 3 | Deep-dive chats are saved per item in Postgres, replayed into the model after a restart | Accepted |
 | D-053 | 3 | Vote result page: a tick and one message, tries to close its own tab after 2.5 s | Accepted |
@@ -530,3 +533,26 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   generations with model and usage, no errors.
 - **Left alone on purpose:** the temporary dev console (`devui/`, removed in Phase 4) and the local, git-ignored
   candidate pools (the Labeling page reads them).
+
+### D-056: Eval gate reads real digests only
+- **Problem:** `radar-eval --gate` failed (jargon rate 40% > 35%, reading grade 11.5 > 11). Per-run numbers swung between
+  0% and 75% jargon, so it was noise: the loaders took the latest 10 runs, which were test runs of whatever prompt was
+  being tried, and the one real digest had 17% and grade 9.9.
+- **Decision:** the loaders skip `is_dry_run` runs. The writing checks (jargon, reading grade, sameness) only apply once
+  there are `evals.min_items_for_text_gate` (15) real entries; before that the report says "writing gate skipped".
+  Faithfulness, model-ID and ranking gates are unchanged.
+- **Why:** a gate that reads test runs and trusts one digest would email a false failure every Monday.
+
+### D-057: Missed-digest alarm
+- **Decision:** `radar-check` (`src/radar/health.py`, workflow `check-digest.yml` at 04:30 UTC = 10:00 IST) looks at the latest
+  non-dry run: OK if it is `sent`/`degraded` and started within 10 hours; otherwise it emails an alert and exits 1 (so the
+  Actions failure email also fires). A degraded digest counts as OK but says so.
+- **Why:** GitHub's scheduler fired the digest 4.5 hours late once; a skipped or crashed run must not be a silent empty inbox.
+
+### D-058: Digests are dated in the reader's timezone
+- **Problem:** `digest_date` was the runner's UTC date, and the unique index allows one real digest per date. The 22:00 UTC
+  run (D-028) shares its date with that morning's UTC run, so it would be skipped as "already exists". The scheduled run
+  at 03:30 IST is also the reader's next-day digest.
+- **Decision:** `timezone: Asia/Kolkata` in `topics.yaml`; `config.local_today()` dates every run (pipeline, smoke, eval
+  report). `tzdata` is a dependency so this works on Windows too. Old rows keep their UTC dates.
+- **Verified:** 22:00 UTC on the 17th maps to the 18th, 07:58 UTC to the 17th; a dry run was stamped correctly.

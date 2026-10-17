@@ -35,6 +35,7 @@ python -m uv run streamlit run devui/app.py       # temporary dev console (local
 python -m uv run radar-maintain --preview   # storage retention: what would be slimmed/deleted
 python -m uv run radar-eval              # offline evals report -> evals/reports/latest.md (no LLM calls)
 python -m uv run radar-eval --check-models --faithfulness 5 --gate   # what CI runs weekly
+python -m uv run radar-check --no-alert   # was a real digest sent in the last 10 hours? (CI runs it daily)
 ```
 
 GitHub CLI: `C:\Program Files\GitHub CLI\gh.exe` (not on the bash PATH by default; add it to PATH).

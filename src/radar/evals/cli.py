@@ -14,11 +14,10 @@ import argparse
 import random
 import sys
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 
 from radar import db, tracing
-from radar.config import ROOT, AppConfig, get_env, load_config
+from radar.config import ROOT, AppConfig, get_env, load_config, local_today
 from radar.evals import ablation, quality
 from radar.evals.dataset import Example, load_examples, unique_items
 from radar.evals.models_check import ModelStatus, check_models
@@ -40,6 +39,7 @@ class EvalResult:
     models: list[ModelStatus] = field(default_factory=list)
     gate_failures: list[str] = field(default_factory=list)
     gate_skipped_reason: str | None = None
+    text_gate_skipped_reason: str | None = None
 
 
 def _fmt(x: float | None, pct: bool = False) -> str:
@@ -71,26 +71,31 @@ def compute(conn, config: AppConfig, *, faithfulness_n: int = 0, models: bool = 
     return result
 
 
-def apply_gate(r: EvalResult, config: AppConfig) -> None:
-    g = config.evals
-    r.gate_failures = [f"model {m.model}: {m.detail}" for m in r.models if not m.ok]
+def _apply_text_gate(r: EvalResult, g) -> None:
     if r.plain.jargon_rate is not None and r.plain.jargon_rate > g.max_jargon_rate:
-        r.gate_failures.append(
-            f"jargon rate {r.plain.jargon_rate:.0%} > {g.max_jargon_rate:.0%}"
-        )
-    if r.faithfulness and r.faithfulness.mean_score is not None \
-            and r.faithfulness.mean_score < g.min_faithfulness:
-        r.gate_failures.append(
-            f"faithfulness {r.faithfulness.mean_score:.0%} < {g.min_faithfulness:.0%}"
-        )
+        r.gate_failures.append(f"jargon rate {r.plain.jargon_rate:.0%} > {g.max_jargon_rate:.0%}")
     if r.plain.reading_grade is not None and r.plain.reading_grade > g.max_reading_grade:
-        r.gate_failures.append(
-            f"reading grade {r.plain.reading_grade:.1f} > {g.max_reading_grade:g}"
-        )
+        r.gate_failures.append(f"reading grade {r.plain.reading_grade:.1f} > {g.max_reading_grade:g}")
     gap = r.variety.sameness_gap if r.variety else None
     if gap is not None and gap > g.max_sameness_gap:
         r.gate_failures.append(
             f"writing makes entries more alike than their sources (+{gap:.2f} > +{g.max_sameness_gap:.2f})"
+        )
+
+
+def apply_gate(r: EvalResult, config: AppConfig) -> None:
+    g = config.evals
+    r.gate_failures = [f"model {m.model}: {m.detail}" for m in r.models if not m.ok]
+    if r.plain.n_items < g.min_items_for_text_gate:
+        r.text_gate_skipped_reason = (
+            f"writing gate skipped: {r.plain.n_items} real digest entries < {g.min_items_for_text_gate} needed"
+        )
+    else:
+        _apply_text_gate(r, g)
+    if r.faithfulness and r.faithfulness.mean_score is not None \
+            and r.faithfulness.mean_score < g.min_faithfulness:
+        r.gate_failures.append(
+            f"faithfulness {r.faithfulness.mean_score:.0%} < {g.min_faithfulness:.0%}"
         )
     n_labels = len(unique_items(r.examples))
     if n_labels < g.min_labels_for_gate:
@@ -107,7 +112,7 @@ def render(r: EvalResult, config: AppConfig) -> str:
     items = unique_items(r.examples)
     n_rel = sum(e.label for e in items)
     days = len({e.day for e in r.examples})
-    out = [f"# Research Radar evals ({date.today().isoformat()})", ""]
+    out = [f"# Research Radar evals ({local_today(config.timezone).isoformat()})", ""]
     out += [f"**Labels:** {len(items)} items ({n_rel} relevant, {len(items) - n_rel} not) across "
             f"{days} digest day(s). **Votes:** {r.votes}.", ""]
 
@@ -143,7 +148,7 @@ def render(r: EvalResult, config: AppConfig) -> str:
         out.append("")
 
     p = r.plain
-    out += ["## Plain language (recent digests)", ""]
+    out += ["## Plain language (recent real digests)", ""]
     if not p.n_items:
         out += ["No digests with plain-language fields yet.", ""]
     else:
@@ -182,8 +187,7 @@ def render(r: EvalResult, config: AppConfig) -> str:
         out.append("")
 
     out += ["## Gate", ""]
-    if r.gate_skipped_reason:
-        out.append(f"- {r.gate_skipped_reason}")
+    out += [f"- {m}" for m in (r.text_gate_skipped_reason, r.gate_skipped_reason) if m]
     out += [f"- FAIL: {msg}" for msg in r.gate_failures] or ["- All checked thresholds pass."]
     return "\n".join(out) + "\n"
 

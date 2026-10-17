@@ -295,3 +295,22 @@ def test_mmr_topic_cap_spreads_core_across_topics():
 def test_mmr_topic_cap_relaxes_when_only_one_topic_exists():
     cs = [cand(i, rank=1 - i / 10, best_topic="agentic-systems") for i in range(5)]
     assert len(diversify.mmr_select(cs, 5, 0.6, max_per_topic=2)) == 5
+
+
+# ---- missed-digest alarm ------------------------------------------------------------------
+def test_health_evaluate_covers_missing_late_stuck_failed_and_ok():
+    from datetime import UTC, datetime, timedelta
+
+    from radar import health
+
+    now = datetime(2026, 10, 18, 4, 30, tzinfo=UTC)
+    run = lambda **kw: {"status": "sent", "started_at": now - timedelta(hours=6), "notes": None, **kw}  # noqa: E731
+    assert health.evaluate(run(), now).ok
+    degraded = health.evaluate(run(status="degraded"), now)
+    assert degraded.ok and "degraded" in degraded.message
+    assert not health.evaluate(None, now).ok
+    late = health.evaluate(run(started_at=now - timedelta(hours=30)), now)
+    assert not late.ok and "last 10 hours" in late.message
+    stuck = health.evaluate(run(status="running", notes="x"), now)
+    assert not stuck.ok and "'running'" in stuck.message and "Notes: x" in stuck.message
+    assert not health.evaluate(run(status="failed"), now).ok

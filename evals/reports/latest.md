@@ -1,6 +1,6 @@
 # Research Radar evals (2026-10-17)
 
-**Labels:** 0 items (0 relevant, 0 not) across 0 digest day(s). **Votes:** 6.
+**Labels:** 0 items (0 relevant, 0 not) across 0 digest day(s). **Votes:** 16.
 
 ## Ranking ablation
 
@@ -10,25 +10,23 @@ No labels yet. Label items on the dev console's **Labeling** page (`uv run strea
 
 Needs labels.
 
-## Plain language (recent digests)
+## Plain language (recent real digests)
 
-- Items checked: 20
-- Items with unexplained jargon: 45% (limit 35%). Most common: framework (3), benchmark (3), tokens (2), token (2), multi-agent (2), rag (1), llms (1), retrieval (1)
+- Items checked: 6
+- Reading level (Flesch-Kincaid grade, lower = easier): 9.89 (limit 11; ~8 = easy for most adults, 12 = end of high school)
+- Items with unexplained jargon: 17% (limit 35%). Most common: pipeline (1)
 - Examples that start with "Imagine": 100%
 - Headlines within 14 words: 100%
 
-## Faithfulness (LLM check on a sample)
+## Variety between entries (recent digests)
 
-Summaries checked: 5. Share of claims supported by the source: 100% (minimum 85%).
-
-
-## Pinned model IDs
-
-- OK `groq/openai/gpt-oss-120b`: available
-- OK `gemini/gemini-3.5-flash-lite`: available
-- OK `openrouter/nvidia/nemotron-3-super-120b-a12b:free`: available
+- Digests checked: 1
+- How alike the entries are (0-1, lower = more varied): written 0.65 vs their sources 0.68. Gap -0.02 (limit +0.03; above 0 means the writing adds sameness)
+- Headlines per digest that share their first two words with another: 0.0
+- Phrases repeated across 3+ entries of a digest: "model s" (3)
 
 ## Gate
 
+- writing gate skipped: 6 real digest entries < 15 needed
 - ranking gate skipped: 0 labels < 100 needed
-- FAIL: jargon rate 45% > 35%
+- All checked thresholds pass.

@@ -1,0 +1,26 @@
+name: check-digest
+
+# Alarm for a missing digest. The digest is due ~03:30 IST (22:00 UTC); this runs at 10:00 IST (04:30 UTC),
+# well after GitHub's scheduler delays, and emails an alert (and fails, so Actions emails too) if no real
+# digest went out in the last 10 hours.
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --no-dev
+      - run: uv run radar-check

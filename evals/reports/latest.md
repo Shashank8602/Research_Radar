@@ -4,7 +4,7 @@
 
 ## Ranking ablation
 
-No labels yet. Label items on the dev console's **Labeling** page (`uv run streamlit run devui/app.py`), then re-run.
+No labels yet. Label items on the dashboard's **Labeling** page (`uv run streamlit run dashboard/app.py`), then re-run.
 
 ## LLM judge vs your labels
 

@@ -181,7 +181,7 @@ flowchart LR
 ```
 
 Environments:
-- **Local:** `.env`, dry runs, dev console.
+- **Local:** `.env`, dry runs, the dashboard's Labeling page.
 - **GitHub Actions:** secrets from repo settings (set via `gh`), scheduled daily run, CI.
 - **Hosted services:** Supabase (data), Langfuse (traces), Groq/Gemini/OpenRouter (LLMs), Gmail SMTP (email); Cloudflare Worker (vote links) and Streamlit Community Cloud (deep dive).
 
@@ -191,9 +191,9 @@ Environments:
 
 | Phase | Outcome | Status |
 |---|---|---|
-| 0 Foundations | LLM, DB, email, tracing, CI, secrets, dev console shell | ✅ |
-| 1 Digest MVP | Daily email, labeling started | 🔨 pipeline, workflow, dev console done; 5 unattended mornings pending |
+| 0 Foundations | LLM, DB, email, tracing, CI, secrets | ✅ |
+| 1 Digest MVP | Daily email (papers, blogs, tool releases, new repos) | ✅ built; a week of unattended mornings pending |
 | 2 Feedback + evals | Votes flow back, precision@5 table | 🔨 built; waiting for ~250 labels to produce the table |
 | 3 Deep dive | Cited, follow-up-capable chat per item | ✅ live; email button added; polish pending |
-| 4 Polish | Watchlist, dashboard, README, dev console removed | ⬜ |
+| 4 Polish | Watchlist, dashboard, missed-digest alarm, README, dev console removed | ✅ (dashboard not deployed yet) |
 | 5 Stretch | Optional extras | ⬜ |

@@ -118,8 +118,8 @@ def render(r: EvalResult, config: AppConfig) -> str:
 
     out += ["## Ranking ablation", ""]
     if not r.examples:
-        out += ["No labels yet. Label items on the dev console's **Labeling** page "
-                "(`uv run streamlit run devui/app.py`), then re-run.", ""]
+        out += ["No labels yet. Label items on the dashboard's **Labeling** page "
+                "(`uv run streamlit run dashboard/app.py`), then re-run.", ""]
     else:
         out += ["Higher is better. P@5 = share of the top 5 that you labeled relevant.", "",
                 "| Ranker | P@5 per day | days | P@5 pooled | P@10 pooled | Avg precision | ROC-AUC |",

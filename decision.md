@@ -51,6 +51,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
 | D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
+| D-059 | 4 | Dev console replaced by a dashboard; reads are enforced read-only (and a probe once wrote a row) | Accepted |
 | D-058 | 4 | Digests are dated in the reader's timezone (IST), not the runner's UTC day | Accepted |
 | D-057 | 4 | Missed-digest alarm: a second workflow checks for a real, sent digest and emails an alert | Accepted |
 | D-056 | 4 | Eval gate reads real digests only and waits for 15 entries before the writing checks can fail | Accepted |
@@ -556,3 +557,17 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Decision:** `timezone: Asia/Kolkata` in `topics.yaml`; `config.local_today()` dates every run (pipeline, smoke, eval
   report). `tzdata` is a dependency so this works on Windows too. Old rows keep their UTC dates.
 - **Verified:** 22:00 UTC on the 17th maps to the 18th, 07:58 UTC to the 17th; a dry run was stamped correctly.
+
+### D-059: Dashboard replaces the dev console; reads are enforced read-only
+- **Decision:** `devui/` is deleted. `dashboard/` (Streamlit) has Overview, Feedback, Quality and a local-only Labeling page.
+  Data logic is in `src/radar/stats.py` (SQL fetches counts; small pure functions compute rates) and
+  `src/radar/evals/labeling.py` (progress, next item, save label); the pages only render. The `devui` dependency group is
+  now `app` (Streamlit and pandas). Stage-by-stage inspection is the Langfuse trace of each run.
+- **Read-only, for real:** `db.connect(read_only=True)` sets psycopg's `read_only` flag (every transaction starts
+  `BEGIN READ ONLY`) and prefers an optional `DASHBOARD_DATABASE_URL` (a SELECT-only role).
+- **Incident:** the first version passed `-c default_transaction_read_only=on` as a startup option. The Supabase pooler drops
+  startup options, so the "read-only" connection accepted writes, and the verification probe (an insert meant to be
+  refused) wrote one golden label. It was found at once, removed (the set was at 0 labels before), and the mechanism
+  replaced; the new check refuses the insert with `ReadOnlySqlTransaction`. Lesson (now in CLAUDE.md): probe "must not
+  write" with a statement that matches no rows.
+- **Not done:** deploying the dashboard (a second Community Cloud app needing the owner's secrets); optional.

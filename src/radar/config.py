@@ -21,6 +21,7 @@ class Env(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     database_url: str | None = None
+    dashboard_database_url: str | None = None  # optional SELECT-only role for the public dashboard
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     openrouter_api_key: str | None = None

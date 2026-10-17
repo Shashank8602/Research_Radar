@@ -16,14 +16,14 @@ If code and docs disagree, fix the docs in the same change.
 
 ## Current status
 
-Phase 0 (foundations) is done. Phase 1 (digest MVP): pipeline, scheduled workflow and dev console are built and verified on live data; waiting on unattended daily runs. Phase 2: feedback links live, vote-based ranking built (off), evals built; waiting for labels. Phase 3 (deep dive): live on Streamlit Community Cloud with an "Explain in depth" button in the email; chats are saved in Postgres; pending: blog-post fixture check. See [flow.md](flow.md) for the stage-by-stage status table.
+Phases 0-4 are built and live. The daily digest (22:00 UTC = 03:30 IST) emails ranked items from papers, blogs, tool releases and new GitHub repos, each with vote buttons and an "Explain in depth" link to a Streamlit deep-dive app (Community Cloud) whose chats are saved in Postgres. `check-digest.yml` alerts if no digest went out. The dashboard (`dashboard/`) shows runs, sources, votes and evals. **Waiting on the owner:** the golden-set labels (Labeling page, goal ~250) so the ranking evals can produce a precision@5 table, and a week of unattended mornings. See [flow.md](flow.md) for the stage table and [decision.md](decision.md) for every decision.
 
 ## Commands
 
 Run `uv` as `python -m uv` on this machine (it was installed via `pip --user`, so `uv` is not on PATH).
 
 ```bash
-python -m uv sync --all-groups          # install everything (dev + devui)
+python -m uv sync --all-groups          # install everything (dev + the Streamlit apps)
 python -m uv run pytest -q              # tests (no network, no real keys needed)
 python -m uv run ruff check . --fix     # lint (E501 ignored; keep lines ~100)
 python -m uv run radar-smoke            # end-to-end check: DB + LLM + email + Langfuse trace
@@ -31,7 +31,8 @@ python -m uv run radar-run --dry-run --top-n 10   # full pipeline, no lock/email
 python -m uv run radar-run --dry-run --email      # ...and email me the digest
 python -m uv run radar-run              # REAL run: takes today's lock and emails (normally CI does this)
 python -m uv run radar-smoke --no-db --no-email   # partial runs while debugging
-python -m uv run streamlit run devui/app.py       # temporary dev console (local only)
+python -m uv run streamlit run dashboard/app.py   # dashboard: runs, sources, votes, evals, Labeling (local only)
+python -m uv run streamlit run agent/app.py       # deep-dive chat (locally: pick an item in the sidebar)
 python -m uv run radar-maintain --preview   # storage retention: what would be slimmed/deleted
 python -m uv run radar-eval              # offline evals report -> evals/reports/latest.md (no LLM calls)
 python -m uv run radar-eval --check-models --faithfulness 5 --gate   # what CI runs weekly
@@ -46,15 +47,15 @@ GitHub CLI: `C:\Program Files\GitHub CLI\gh.exe` (not on the bash PATH by defaul
 src/radar/        pipeline code (config, db, llm, tracing, deliver/, collect/, ...)
 db/migrations/    versioned SQL, applied in name order by radar.db.migrate
 topics.yaml       behavior config: models, digest sections, topics, sources, watchlist
-devui/            TEMPORARY Streamlit viewer, removed in Phase 4
-evals/            golden set + candidate pools (Phase 2)
+dashboard/        Streamlit dashboard (pages only; logic is in src/radar/stats.py and evals/labeling.py)
+agent/            Streamlit deep-dive page (logic in src/radar/agent/)
+worker/           Cloudflare Worker (JS): one-click vote links, with Node tests
+evals/            candidate pools (local, git-ignored) and the latest report
 tests/            pytest, no network
 .claude/skills/langfuse/   Langfuse skill (docs-first workflow for tracing/evals)
 ```
 
-Pipeline modules: `collect/` (arxiv, hf_papers, hn, rss, github), `dedupe.py`, `embed.py`, `filter.py`, `judge.py`, `diversify.py`, `compose.py` (+ `templates/`), `pipeline.py`. Workflows: `ci.yml`, `daily-digest.yml`.
-
-Deep dive: logic in `src/radar/agent/` (tools, index, graph, store), Streamlit page in `agent/app.py` (run with `python -m uv run streamlit run agent/app.py`). Planned (not built yet): `dashboard/`.
+Pipeline modules: `collect/` (arxiv, hf_papers, hn, rss, github), `dedupe.py`, `embed.py`, `filter.py`, `judge.py`, `diversify.py`, `compose.py` (+ `templates/`), `pipeline.py`. Also `health.py` (missed-digest alarm), `maintain.py` (retention), `stats.py` (dashboard data), `agent/` (deep dive). Workflows: `ci.yml`, `daily-digest.yml`, `check-digest.yml`, `evals.yml`.
 
 ## Conventions
 
@@ -67,7 +68,8 @@ Deep dive: logic in `src/radar/agent/` (tools, index, graph, store), Streamlit p
 - **Plain-language details.** The digest audience is a curious non-expert: no unexplained jargon, short sentences, an "Imagine..." example per item (illustration only, no invented facts). Change the wording rules in `plain.py` (one glossary + checker used by the judge prompt, the rewrite pass and the evals), not ad hoc.
 - **Idempotent runs.** The `runs` table is the lock: one real (non-dry) run per `digest_date`. Dry runs are exempt. Never send a digest without first claiming the run.
 - **Degrade, don't die.** A failing source or exhausted LLM fallback should produce a degraded digest, not no digest.
-- **Dev console isolation.** Nothing in `src/` imports `devui/`. It is read-only, local only, holds no business logic. Logic a page needs belongs in `src/radar/`.
+- **Apps hold no logic.** `dashboard/` and `agent/app.py` only render; anything a page needs lives in `src/radar/` and is tested there. Reads use `db.connect(read_only=True)`; the one page that writes (Labeling) is off when `APP_ENV=production`. Test "must not write" with a statement that matches no rows, never with a real insert (a startup option was once silently ignored behind the pooler and a probe row was written).
+- **Digest dates are local.** A run is dated by `timezone` in `topics.yaml` (IST), not the runner's UTC day, so the 22:00 UTC run is tomorrow's digest and never collides with an earlier run.
 - **Tests** use fakes and fixtures, never the network or real keys.
 
 ## Secrets and safety

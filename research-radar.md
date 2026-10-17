@@ -2,7 +2,7 @@
 
 A personal, daily AI-research digest for GenAI engineers. It collects new papers, posts, repos and releases, filters them against my interests, explains *why each item matters to me*, and learns from my 👍/👎 feedback. Each item has a **Deep dive** link that opens a grounded, citation-backed chat about it.
 
-**Status:** planning (v2, revised after review) · **Mode:** solo project · **Goals:** daily-use tool + portfolio piece · **Constraint:** hosted free tiers only (no local GPU)
+**Status:** built and running (this is the original design doc; see [README.md](README.md) for the current state and [decision.md](decision.md) for what changed) · **Mode:** solo project · **Goals:** daily-use tool + portfolio piece · **Constraint:** hosted free tiers only (no local GPU)
 
 ---
 

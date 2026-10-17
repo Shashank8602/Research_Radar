@@ -2,7 +2,7 @@
 name = "research-radar"
 version = "0.1.0"
 description = "Personal daily AI-research digest with feedback loop and grounded deep-dive."
-readme = "research-radar.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
@@ -28,8 +28,8 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
-# Temporary dev console (see plan.md, "Dev console"). Delete this group with devui/ in Phase 4.
-devui = [
+# The Streamlit apps: agent/app.py (deep dive) and dashboard/. Not needed by the daily digest run.
+app = [
     "pandas>=2.2",
     "streamlit>=1.38",
 ]
@@ -50,7 +50,7 @@ packages = ["src/radar"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "devui"]
+src = ["src", "tests", "dashboard"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RET", "PIE", "PERF", "RUF"]

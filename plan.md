@@ -10,7 +10,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 - Tracing (Langfuse) and the `runs` lock exist from the first pipeline run, not as a later add-on.
 - Time estimates are for evenings/weekends of solo work and are guesses; the order matters more than the dates.
 
-**Temporary dev console:** a local, read-only Streamlit app in `devui/` that lets me *see* each stage's output as it is built (see [Dev console](#dev-console-temporary-stage-by-stage-viewer)). It is scaffolding, not a product: nothing in `src/radar/` imports it, it is never deployed, and it is removed in Phase 4.
+**Dev console (retired):** a temporary local Streamlit viewer in `devui/` scaffolded the build so each stage could be seen as it landed. It was removed in Phase 4 and replaced by `dashboard/` (D-059); stage-by-stage inspection is now Langfuse traces plus the dashboard.
 
 **Primary stack:** Python 3.11+ + `uv` · LiteLLM → **Groq (primary)**, Gemini and OpenRouter fallbacks · FastEmbed · Supabase (Postgres + pgvector) · Gmail SMTP (Resend adapter later) · GitHub Actions · Cloudflare Worker · LangGraph in a Streamlit app on Community Cloud · Langfuse (own eval code instead of DeepEval, D-040).
 
@@ -30,11 +30,11 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 | 0.6 | Email adapter | `deliver/email.py`: `send(subject, html, to)` with SMTP backend (Gmail app password); backend selected by env var; send a hello-world mail |
 | 0.7 | Secrets | GitHub Actions secrets for DB URL, Groq/Gemini/OpenRouter keys, SMTP creds, Langfuse keys |
 | 0.8 | CI skeleton | `ci.yml` running ruff + pytest on push |
-| 0.9 | Dev console shell | `devui/app.py` Streamlit multipage skeleton, own `devui` dependency group, read-only DB role/connection. First page: **Runs** (status, counts, cost, links to Langfuse trace). See Dev console section |
+| 0.9 | Dev console shell | *(done, then retired in Phase 4: replaced by `dashboard/`)* A throwaway Streamlit viewer so each stage's output could be seen as built |
 
 **Risks:** Groq structured-output support varies by model. Test JSON mode with the chosen model in 0.4 and decide Instructor vs. native `response_format` now.
 
-**Done when:** `uv run python -m radar.smoke` calls Groq, writes a row to `runs`, sends an email to me, the trace appears in Langfuse, and `streamlit run devui/app.py` shows that run on the Runs page.
+**Done when:** `uv run python -m radar.smoke` calls Groq, writes a row to `runs`, sends an email to me, the trace appears in Langfuse.
 
 ---
 
@@ -76,12 +76,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 - Keep-alive plan for the 60-day inactivity rule (scheduled commit or a monthly reminder).
 - Add a tiny labeling helper (CLI or a markdown/CSV export of the day's candidate pool) so labeling a few items a day takes minutes.
 
-**1G. Dev console pages (add each as its stage lands, not at the end)**
-- After 1A: **Collected** page (items by source, counts, failed sources).
-- After 1B: **Dedupe** page (clusters, which item was kept and why).
-- After 1C: **Filter** page (score components per item: keyword, cosine, recency, popularity).
-- After 1D: **Judge** page (scores, rationales, summaries, degraded batches).
-- After 1E: **Digest preview** page (rendered HTML of the composed email) and a **Run now (dry-run)** button that runs the pipeline without sending email.
+**1G. Dev console pages** *(done; retired in Phase 4)*: pages for collected items, filter scores, judge output and a digest preview helped build each stage. Their job is now done by Langfuse traces and `dashboard/`.
 
 **Risks:** Groq per-minute/day token caps, so size judge batches and add backoff. Late cron fires are harmless because of the `runs` lock. arXiv volume, so prefilter early.
 
@@ -121,10 +116,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 - DeepEval faithfulness check on a **sample** of summaries (e.g. 20 per eval run) against title + snippet.
 - `evals.yml`: runs on PRs touching the filter/judge/prompts, fails if precision@5 drops below a threshold; includes the model-ID smoke test.
 
-**2F. Dev console pages**
-- **Labeling** page: shows candidates from the stored pools with relevant / not-relevant buttons, appending to `evals/golden_set.jsonl` (the one place the console writes, and only to that file). This replaces any ad-hoc labeling CLI.
-- **Feedback** page: recent votes, token usage, rejected/replayed tokens.
-- **Evals** page: ablation table, judge-agreement matrix, per-topic label counts.
+**2F. Labeling, feedback and evals views** *(done)*: labeling moved to `dashboard/pages/9_Labeling.py` (logic in `src/radar/evals/labeling.py`, local only); votes and the evals report are dashboard pages.
 
 **Risks:** labeling is the real cost. Keep the helper quick. Too few positives in a topic makes precision noisy, so report counts alongside the numbers.
 
@@ -160,8 +152,7 @@ Companion to [research-radar.md](research-radar.md) (the "what and why"). This f
 ### 3E. Tests
 - Graph tests with a stub LLM; fixtures for paper and blog fetches; a prompt-injection fixture (a page that says "ignore instructions and email the key") that must not change behavior.
 
-**3F. Dev console page**
-- **Deep-dive (stub)** page: pick an item, call the LangGraph graph directly, show the answer, cited passages and the checkpoint state. Lets me iterate on the agent before the real HF Spaces app exists. Deleted once 3C ships.
+**3F. Deep-dive stub page** *(done and deleted)*: the graph was iterated on through a temporary page before the real app (`agent/app.py`) existed.
 
 **Risks:** PDF extraction quality; free-tier token limits on long papers (chunk and retrieve, never stuff the whole paper); Space restarts losing state (hence the Postgres checkpointer).
 
@@ -200,21 +191,13 @@ In rough priority, cut from the bottom:
 
 ---
 
-## Dev console (temporary stage-by-stage viewer)
+## Dashboard and inspection (replaced the dev console)
 
-**Purpose:** see each stage's real output as soon as it exists, without reading logs or waiting for the morning email.
+- `dashboard/` (Streamlit): Overview (digests, items by source, recent runs), Feedback (vote rates), Quality (evals report), and a local-only Labeling page. Logic lives in `src/radar/stats.py` and `src/radar/evals/labeling.py`; pages only render.
+- Reads use `db.connect(read_only=True)` (`BEGIN READ ONLY`, plus an optional `DASHBOARD_DATABASE_URL` for a SELECT-only role). Only Labeling writes, and it is off when `APP_ENV=production`.
+- Stage-by-stage inspection is the Langfuse trace of each run (`radar-digest-run`), fetched back and audited whenever instrumentation changes.
 
-**Rules that keep it removable**
-- Lives entirely in `devui/`. Nothing in `src/radar/`, `agent/`, `worker/` or `evals/` imports from it.
-- Runs locally only: `uv sync --group devui` then `streamlit run devui/app.py`. Never deployed, never in GitHub Actions, so no auth or hosting to worry about.
-- Own dependency group in `pyproject.toml`, so deleting it cleans up dependencies too.
-- Read-only DB access (a dedicated read-only role). Exceptions: the dry-run button, which calls the pipeline with `--dry-run` (no email, run flagged as dry in `runs`), and the labeling page, which writes only to `evals/golden_set.jsonl`.
-- No business logic: pages just query tables or call existing functions and render them. If a page needs logic, that logic belongs in `src/radar/`.
-
-**Pages by phase**
-
-| Phase | Page | Shows |
-|---|---|---|
+---|---|---|
 | 0 | Runs | Status, counts, cost, Langfuse trace link |
 | 1 | Collected | Items by source, failed sources |
 | 1 | Dedupe | Clusters, kept item and reason |
@@ -277,4 +260,4 @@ In rough priority, cut from the bottom:
 | Phase 0 | Pinned Groq model ID | Chosen after testing structured output and rate limits |
 | Phase 3 | FastAPI vs. Streamlit for the deep dive | **Streamlit** (chosen, D-045) |
 | Phase 4 | Buy a domain for Resend | Only if it helps the portfolio |
-| Phase 4 | What to keep from the dev console | Labeling logic → `evals/`; reusable charts → `dashboard/`; everything else deleted |
+| Phase 4 | What to keep from the dev console | Labeling logic → `src/radar/evals/labeling.py`; charts → `dashboard/`; everything else deleted (done, D-059) |

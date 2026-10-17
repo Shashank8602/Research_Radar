@@ -17,10 +17,18 @@ MIGRATIONS_DIR = ROOT / "db" / "migrations"
 
 
 @contextmanager
-def connect() -> Iterator[psycopg.Connection]:
+def connect(*, read_only: bool = False) -> Iterator[psycopg.Connection]:
+    """Open a connection. `read_only` makes the server refuse any write, and prefers
+    DASHBOARD_DATABASE_URL (a role limited to SELECT) when one is set."""
     env = get_env()
-    env.require("database_url")
-    with psycopg.connect(env.database_url, row_factory=dict_row) as conn:
+    url = (env.dashboard_database_url if read_only else None) or env.database_url
+    if not url:
+        env.require("database_url")
+    with psycopg.connect(url, row_factory=dict_row) as conn:
+        if read_only:
+            # Every transaction starts as BEGIN READ ONLY. A startup option would be dropped by the
+            # connection pooler in front of the database, silently allowing writes.
+            conn.read_only = True
         register_vector_types(conn)
         yield conn
 

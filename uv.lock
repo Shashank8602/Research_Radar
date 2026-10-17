@@ -3390,13 +3390,13 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+app = [
+    { name = "pandas" },
+    { name = "streamlit" },
+]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
-]
-devui = [
-    { name = "pandas" },
-    { name = "streamlit" },
 ]
 
 [package.metadata]
@@ -3420,13 +3420,13 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+app = [
+    { name = "pandas", specifier = ">=2.2" },
+    { name = "streamlit", specifier = ">=1.38" },
+]
 dev = [
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.6" },
-]
-devui = [
-    { name = "pandas", specifier = ">=2.2" },
-    { name = "streamlit", specifier = ">=1.38" },
 ]
 
 [[package]]

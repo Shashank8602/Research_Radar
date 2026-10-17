@@ -592,3 +592,8 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   its alarm silently. `keepalive.yml` re-enables them monthly through the API (best effort, not verifiable in advance).
 - **Actions hygiene:** default workflow permission is read-only; workflow runs from outside contributors require approval.
   Logs mask secret values (`[send] emailed ***`).
+- **Done (2026-10-17):** the repository was made public after the history rewrite and audit. Applied afterwards: workflow
+  approval required for ALL outside contributors, read-only default workflow token, secret scanning and push protection on.
+  The keep-alive workflow was run once and enabled all four scheduled workflows (whether that resets GitHub's 60-day timer cannot
+  be proven in advance). Found afterwards: the deployed deep-dive app still redirects anonymous visitors to a Streamlit sign-in,
+  so its sharing setting must be switched to public by the owner (Streamlit account setting, not changeable from here).

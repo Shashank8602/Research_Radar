@@ -1,7 +1,9 @@
 // Research Radar feedback endpoint (Cloudflare Worker).
 //
-//   GET  /f/<token>  -> confirm page. Changes NOTHING, so mail scanners that pre-fetch links are harmless.
-//   POST /f/<token>  -> verifies the signed token, then records the vote through a Supabase RPC.
+//   GET  /f/<token>  -> from a real browser click (Sec-Fetch-Mode: navigate): records the vote and shows the result.
+//                       from anything else (mail scanners, link previews, prefetch): shows a confirm page and
+//                       changes NOTHING, so automated pre-fetching can never cast a vote.
+//   POST /f/<token>  -> the confirm page's button; verifies the signed token and records the vote.
 //
 // Token = base64url(JSON{n: nonce, i: item, r: run, a: action, e: expiry-unix}) + "." + base64url(HMAC-SHA256).
 // Secrets (wrangler secret put): FEEDBACK_SIGNING_SECRET, SUPABASE_URL, SUPABASE_KEY (publishable key).
@@ -109,7 +111,23 @@ function page(title, { mark = "none", heading, text = "", item = "", form = "" }
 
 const problem = (heading, status = 400) =>
   page("Link problem", { mark: "warn", heading, text: "This link may be old, already used, or incomplete." }, status);
-const already = () => page("Already recorded", { mark: "ok", heading: "Already recorded", text: "You've already used this link. Nothing more to do." });
+const already = (act, headline = "") =>
+  page("Already recorded", { mark: "ok", heading: "Already recorded", text: act ? act.done : "You've already used this link.", item: headline });
+
+// A real person clicking a link sends Sec-Fetch-Mode: navigate; server-side scanners and most
+// previewers do not. Anything unsure falls back to the confirm page.
+function isBrowserClick(request) {
+  const purpose = `${request.headers.get("sec-purpose") || ""} ${request.headers.get("purpose") || ""}`;
+  return request.method === "GET" && request.headers.get("sec-fetch-mode") === "navigate" && !/prefetch|prerender|preview/i.test(purpose);
+}
+
+async function record(env, claims, act, headline) {
+  const result = await rpc(env, "record_feedback", { p_nonce: claims.n, p_item: claims.i, p_run: claims.r, p_action: claims.a });
+  if (result === "ok") return page("Done", { mark: "ok", heading: act.done, item: headline, text: "You can close this tab." });
+  if (result === "used") return already(act, headline);
+  if (result === "expired") return problem("This link has expired", 410);
+  return problem("This link isn't valid");
+}
 
 export { verifyToken };
 
@@ -125,17 +143,18 @@ export default {
     const act = ACTIONS[claims.a];
 
     if (request.method === "GET" || request.method === "HEAD") {
-      // Read-only: show what will be recorded. Never writes.
       let headline = "";
       try {
         const info = await rpc(env, "feedback_token_info", { p_nonce: claims.n });
-        if (info.status === "used") return already();
+        headline = info.headline || "";
+        if (info.status === "used") return already(act, headline);
         if (info.status === "expired") return problem("This link has expired", 410);
         if (info.status !== "ok") return problem("This link isn't valid");
-        headline = info.headline || "";
+        if (isBrowserClick(request)) return await record(env, claims, act, headline);
       } catch {
         return problem("Something went wrong. Please try again later", 502);
       }
+      // Not a confirmed human click: show what would be recorded, write nothing.
       return page(act.title, {
         heading: act.ask,
         item: headline,
@@ -145,11 +164,7 @@ export default {
 
     if (request.method === "POST") {
       try {
-        const result = await rpc(env, "record_feedback", { p_nonce: claims.n, p_item: claims.i, p_run: claims.r, p_action: claims.a });
-        if (result === "ok") return page("Done", { mark: "ok", heading: act.done, text: "You can close this tab." });
-        if (result === "used") return already();
-        if (result === "expired") return problem("This link has expired", 410);
-        return problem("This link isn't valid");
+        return await record(env, claims, act, "");
       } catch {
         return problem("Something went wrong. Please try again later", 502);
       }

@@ -115,7 +115,7 @@ sequenceDiagram
     P->>P: rank = stated interests (anchors) blended with revealed interests (kNN)
 ```
 
-Buttons in the email: **More like this** (`up`), **Less like this** (`down`), **Save for later** (`save`). Status: ✅ live at `research-radar-feedback.shashu-s08.workers.dev`; votes are stored and scored, but only influence ranking once the evals justify a non-zero weight.
+One click on a button records the vote and shows a message for that action (D-047); unverified clients (scanners, previews) get a confirm page instead. Buttons in the email: **More like this** (`up`), **Less like this** (`down`), **Save for later** (`save`). Status: ✅ live at `research-radar-feedback.shashu-s08.workers.dev`; votes are stored and scored, but only influence ranking once the evals justify a non-zero weight.
 
 ### Evals loop
 

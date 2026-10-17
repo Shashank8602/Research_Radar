@@ -50,6 +50,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 | D-042 | 2 | Eval gate in CI with label-count and threshold rules | Accepted |
 | D-043 | 2 | Entries must be specific AND plain: topic angles, explain-once vocabulary, editor pass, topic cap | Accepted |
 | D-044 | 2 | Storage retention: slim after 30 days, delete after 180, keep what matters forever | Accepted |
+| D-047 | 3 | One-click feedback: a browser click records at once; unverified clients still get the confirm page | Accepted |
 
 ---
 
@@ -97,7 +98,7 @@ Every implementation decision: what the problem was, what we chose, why, and wha
 - **Why:** The deep-dive needs Python libraries (PyMuPDF, trafilatura, FastEmbed) that Workers cannot run. The trade-off is a cold start of about 30 seconds after the Space sleeps; the email says so.
 - **Rejected:** Deep-dive inside a Worker (no Python).
 
-### D-008: Feedback links are signed, single-use and POST-confirmed
+### D-008: Feedback links are signed, single-use and POST-confirmed (amended by D-047)
 - **Problem:** Mail scanners pre-fetch links and would register phantom votes; links could be replayed or forged.
 - **Decision:** A link opens a confirm page (GET changes nothing); only the button's POST records the vote. Tokens are HMAC-signed (item, run, action, expiry) with a stored nonce, single use, and votes are idempotent per item.
 - **Why:** Defeats pre-fetching, replay and double counting.
@@ -362,3 +363,16 @@ Every implementation decision: what the problem was, what we chose, why, and wha
   the 1 run referenced by votes kept; nothing changed afterwards.
 - **Rejected:** a soft-delete "trash" flag on every table (more queries to filter it everywhere); keeping
   everything (fills the free tier in ~15 months).
+
+### D-047: One-click feedback (amends D-008 / D-031)
+- **Problem:** The confirm page meant two clicks per vote. The reader wanted one click and a message for that action.
+- **Decision:** In `worker/src/index.js`, a GET that carries `Sec-Fetch-Mode: navigate` (browsers send it on a real
+  click; server-side mail scanners and link previewers do not) and no prefetch/prerender `Purpose` header records the
+  vote at once and shows an action-specific message with the item headline ("Noted. You'll see more items like this.").
+  Any other GET, and HEAD, still shows the old confirm page and writes nothing; its button POSTs as before. A used
+  token now repeats the same message under "Already recorded". Tokens stay signed, single-use and expiring.
+- **Why:** Keeps D-008's protection against phantom votes (unknown client = confirm page) while giving a real click the
+  one-step flow. Worker tests: `node --test worker/test/handler.test.mjs` (7 cases, fake database).
+- **Risk:** a scanner that spoofs browser navigation headers could consume a token. Judged unlikely for Gmail; the vote
+  would simply read "Already recorded" and can be changed by the other button's link.
+- **Deployed:** 2026-10-17, version f4f2454f.
